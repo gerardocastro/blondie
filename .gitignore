@@ -1,0 +1,12 @@
+*.swp
+.DS_Store
+*.log
+coverage
+log/*
+tmp/*
+.rvmrc
+doc/*
+.yardoc/*
+.bundle
+vendor/ruby
+*.db
