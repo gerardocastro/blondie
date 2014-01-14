@@ -72,12 +72,13 @@ module Blondie
 
   class SearchProxy
 
+    META_OPERATOR_OR = ' OR '
+    META_OPERATOR_AND = ' AND '
+
     def initialize(klass, query = {})
       @klass = klass
       @query = query
     end
-
-    # @todo Beware of associations starting with the same things (ex: media & media_selection)
 
     # Detected and used:
     #
@@ -87,9 +88,6 @@ module Blondie
     # %{association}_%{association}_%{column_name}_%{operator}
     # %{association}_%{scope}
     # %{association}_%{association}_%{scope}
-    #
-    # Detected but not used:
-    #
     # %{column_name}_%{operator}_%{modifier}
     # %{association}_%{column_name}_%{operator}_%{modifier}
     # %{association}_%{association}_%{column_name}_%{operator}_%{modifier}
@@ -114,11 +112,31 @@ module Blondie
           end
         end
 
+        case condition.modifier
+        when 'all'
+          values = value
+          meta_operator = META_OPERATOR_AND
+        when 'any'
+          values = value
+          meta_operator = META_OPERATOR_OR
+        else
+          values = [value]
+          meta_operator = ''
+        end
+
         case condition.operator
         when 'like'
-          result = result.where("#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} LIKE ?", "%#{value}%")
+          conditions = values.map{ "(#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} LIKE ?)" }
+          bindings = values.map{|v| "%#{v}%" }
+          result = result.where([conditions.join(meta_operator), *bindings])
         when 'equals'
-          result = result.where(condition.klass.table_name => { condition.column_name => value })
+          if meta_operator == META_OPERATOR_OR
+            result = result.where("#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} IN (?)", values)
+          else
+            values.each do |v|
+              result = result.where(condition.klass.table_name => { condition.column_name => v })
+            end
+          end
         else # a scope that has been whitelisted
           if value == '1' # @todo isn't it a bit arbitrary? ;)
             # The join([]) is here in order to use 'merge'. If anyone has a better suggestion, I'll be glad to hear about it.

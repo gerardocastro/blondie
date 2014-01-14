@@ -118,30 +118,49 @@ end
 
 describe Blondie::SearchProxy do
 
-  context "#result" do
-    it "should understand call to a scope" do
-      User.search(active: '1').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."active" = 't')
-    end
+  describe "#result" do
 
-    context "for a base class column" do
-      it "should understand the 'like' operator" do
-        User.search(name_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE ("users"."name" LIKE '%toto%'))
+    context "when condition applies to the original class" do
+      it "should understand condition that is a scope" do
+        User.search(active: '1').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."active" = 't')
       end
 
-      it "should understand the 'equals' operator" do
-        User.search(name_equals: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."name" = 'toto')
-        User.search(posts_count_equals: '2').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."posts_count" = 2)
+      describe "the 'like' operator" do
+        it "should understand the 'like' operator without modifier" do
+          User.search(name_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%')))
+        end
+        it "should understand the 'like' operator with the 'any' modifier" do
+          User.search(name_like_any: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%') OR ("users"."name" LIKE '%tutu%')))
+        end
+        it "should understand the 'like' operator with the 'all' modifier" do
+          User.search(name_like_all: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%') AND ("users"."name" LIKE '%tutu%')))
+        end
+      end
+
+      describe "the 'equals' operator" do
+        it "should understand the 'equals' operator without modifier" do
+          User.search(name_equals: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."name" = 'toto')
+        end
+        it "should understand the 'equals' operator with the 'any' modifier" do
+          User.search(name_equals_any: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE ("users"."name" IN ('toto','tutu')))
+        end
+        it "should understand the 'equals' operator with the 'all' modifier" do
+          User.search(name_equals_all: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."name" = 'toto' AND "users"."name" = 'tutu')
+        end
+        it "should typecast values if needed" do
+          User.search(posts_count_equals: '2').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."posts_count" = 2)
+        end
       end
     end
 
-    context "for an association column" do
+    context "when condition applies to an association" do
 
-      it "should understand call to a scope" do
+      it "should understand condition that is a scope" do
         User.search(posts_published: '1').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE "posts"."published" = 't')
       end
 
       it "should understand the 'like' operator" do
-        User.search(posts_title_like: 'tutu').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE ("posts"."title" LIKE '%tutu%'))
+        User.search(posts_title_like: 'tutu').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE (("posts"."title" LIKE '%tutu%')))
       end
 
       it "should understand the 'equals' operator" do
