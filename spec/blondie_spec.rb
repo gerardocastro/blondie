@@ -143,6 +143,32 @@ describe Blondie::SearchProxy do
 
   describe "#result" do
 
+    context "with the order option" do
+      it "should use 'ascend' by default" do
+        User.search(order: 'name').result.to_sql.should == %(SELECT "users".* FROM "users"   ORDER BY "users"."name" ASC)
+      end
+
+      it "should recognize the 'ascend_by' syntax" do
+        User.search(order: 'ascend_by_name').result.to_sql.should == %(SELECT "users".* FROM "users"   ORDER BY "users"."name" ASC)
+      end
+
+      it "should recognize the 'descend_by' syntax" do
+        User.search(order: 'descend_by_name').result.to_sql.should == %(SELECT "users".* FROM "users"   ORDER BY "users"."name" DESC)
+      end
+
+      it "should order on association" do
+        User.search(order: 'descend_by_posts_comments_author').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" INNER JOIN "comments" ON "comments"."post_id" = "posts"."id"  ORDER BY "comments"."author" DESC)
+      end
+
+      context "when order in invalid" do
+        it "should raise an error" do
+          lambda do
+            User.search(order: 'toto').result
+          end.should raise_error ArgumentError
+        end
+      end
+    end
+
     context "when search options are nil" do
       it "should not raise an error" do
         User.search(nil).result.to_sql.should == %(SELECT "users".* FROM "users")

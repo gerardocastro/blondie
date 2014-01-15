@@ -117,85 +117,40 @@ module Blondie
     def result
       # The join([]) is here in order to get the proxy instead of the base class.
       # If anyone has a better suggestion on how to achieve the same effect, I'll be glad to hear about it.
-      result = @klass.joins([])
+      proxy = @klass.joins([])
       @query.each_pair do |condition_string, value|
 
-        query_chunks = []
+        if condition_string == 'order'
+          apply_order proxy, value
+        else
+          begin
+            conditions = condition_string.to_s.split('_or_').map{|s| ConditionString.new(@klass, s).parse! }
+          rescue ConditionNotParsedError
+            conditions = [ConditionString.new(@klass, condition_string).parse!]
+          end
 
-        begin
-          conditions = condition_string.to_s.split('_or_').map{|s| ConditionString.new(@klass, s).parse! }
-        rescue ConditionNotParsedError
-          conditions = [ConditionString.new(@klass, condition_string).parse!]
+          raise ConditionNotParsedError, "#{conditions.last.string} should have an operator" if conditions.last.partial?
+
+          proxy = apply_conditions(proxy, conditions, value)
         end
-
-        raise ConditionNotParsedError, "#{conditions.last.string} should have an operator" if conditions.last.partial?
-
-        conditions.each do |condition|
-
-          if condition.partial?
-            condition.operator = conditions.last.operator
-            condition.modifier = conditions.last.modifier
-          end
-
-          condition_proxy = @klass
-
-          if condition.associations.any?
-            if condition.associations.size == 1
-              result = result.joins(condition.associations)
-            else
-              association_chain = condition.associations.reverse[1..-1].inject(condition.associations.last){|m,i| h = {}; h[i] = m; h }
-              result = result.joins(association_chain)
-            end
-          end
-
-          case condition.modifier
-          when 'all'
-            values = value
-            condition_meta_operator = META_OPERATOR_AND
-          when 'any'
-            values = value
-            condition_meta_operator = META_OPERATOR_OR
-          else
-            values = [value]
-            condition_meta_operator = ''
-          end
-
-          case condition.operator
-          when 'like'
-            sub_conditions = values.map{ "(#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} LIKE ?)" }
-            bindings = values.map{|v| "%#{v}%" }
-            condition_proxy = condition_proxy.where([sub_conditions.join(condition_meta_operator), *bindings])
-          when 'equals'
-            if condition_meta_operator == META_OPERATOR_OR
-              condition_proxy = condition_proxy.where("#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} IN (?)", values)
-            else
-              values.each do |v|
-                condition_proxy = condition_proxy.where(condition.klass.table_name => { condition.column_name => v })
-              end
-            end
-          else # a scope that has been whitelisted
-            # This is directly applied to the result and not the condition_proxy because we cannot use _or_ with scopes.
-            case condition.klass.allowed_scopes[condition.operator.to_s]
-            when 0
-              if value == CHECKBOX_TRUE_VALUE
-                result = result.merge(condition.klass.send(condition.operator))
-              end
-            else
-              result = result.merge(condition.klass.send(condition.operator, value))
-            end
-          end
-
-          if condition_proxy != @klass
-            condition_proxy.to_sql =~ /WHERE (.*)$/
-            query_chunks << $1
-          end
-        end
-
-        result = result.where(query_chunks.join(META_OPERATOR_OR)) unless query_chunks.empty?
 
       end
 
-      result
+      proxy
+    end
+
+    def apply_order(proxy, order_string)
+      order_string.to_s =~ /^((ascend|descend)_by_)?(.*)$/
+      direction = $2 == 'descend' ? 'DESC' : 'ASC'
+      begin
+        condition = ConditionString.new(@klass, $3).parse!
+        raise ConditionNotParsedError unless condition.partial?
+      rescue ConditionNotParsedError
+        raise ArgumentError, "'#{order_string}' is not a valid order string"
+      end
+
+      proxy.order! "#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} #{direction}"
+      proxy.joins! chain_associations(condition.associations) unless condition.associations.empty?
     end
 
     def method_missing(method_name, *args, &block)
@@ -208,6 +163,77 @@ module Blondie
       rescue ConditionNotParsedError
         super method_name, *args, &block
       end
+    end
+
+    private
+
+    def chain_associations(associations)
+      associations.reverse[1..-1].inject(associations.last){|m,i| h = {}; h[i] = m; h }
+    end
+
+    def apply_conditions(proxy, conditions, value)
+
+      query_chunks = []
+
+      conditions.each do |condition|
+
+        if condition.partial?
+          condition.operator = conditions.last.operator
+          condition.modifier = conditions.last.modifier
+        end
+
+        condition_proxy = @klass
+
+        if condition.associations.any?
+          proxy = proxy.joins(chain_associations(condition.associations))
+        end
+
+        case condition.modifier
+        when 'all'
+          values = value
+          condition_meta_operator = META_OPERATOR_AND
+        when 'any'
+          values = value
+          condition_meta_operator = META_OPERATOR_OR
+        else
+          values = [value]
+          condition_meta_operator = ''
+        end
+
+        case condition.operator
+        when 'like'
+          sub_conditions = values.map{ "(#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} LIKE ?)" }
+          bindings = values.map{|v| "%#{v}%" }
+          condition_proxy = condition_proxy.where([sub_conditions.join(condition_meta_operator), *bindings])
+        when 'equals'
+          if condition_meta_operator == META_OPERATOR_OR
+            condition_proxy = condition_proxy.where("#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} IN (?)", values)
+          else
+            values.each do |v|
+              condition_proxy = condition_proxy.where(condition.klass.table_name => { condition.column_name => v })
+            end
+          end
+        else # a scope that has been whitelisted
+          # This is directly applied to the proxy and not the condition_proxy because we cannot use _or_ with scopes.
+          case condition.klass.allowed_scopes[condition.operator.to_s]
+          when 0
+            if value == CHECKBOX_TRUE_VALUE
+              proxy = proxy.merge(condition.klass.send(condition.operator))
+            end
+          else
+            proxy = proxy.merge(condition.klass.send(condition.operator, value))
+          end
+        end
+
+        if condition_proxy != @klass
+          condition_proxy.to_sql =~ /WHERE (.*)$/
+          query_chunks << $1
+        end
+      end
+
+      proxy = proxy.where(query_chunks.join(META_OPERATOR_OR)) unless query_chunks.empty?
+
+      proxy
     end
 
   end
