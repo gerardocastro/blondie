@@ -62,3 +62,16 @@ class Comment < ActiveRecord::Base
 
   allow_scopes anonymous: 0
 end
+
+class Helper
+
+  include Blondie::FormHelper
+
+  def form_tag(path, options)
+    yield(self) if block_given?
+  end
+
+  def fields_for(object_alias, object)
+  end
+
+end

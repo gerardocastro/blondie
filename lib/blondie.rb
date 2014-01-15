@@ -2,8 +2,22 @@ require 'active_record'
 
 module Blondie
 
+  module FormHelper
+
+    DEFAULT_AS = 'q'
+
+    def search_form_for(search, options = {})
+      as = options[:as] || DEFAULT_AS
+      form_tag nil, method: :get do
+        fields_for(as, search) do |g|
+          yield g
+        end
+      end
+    end
+  end
+
   def search(query = {})
-    SearchProxy.new(self, query)
+    SearchProxy.new(self, (query || {}).stringify_keys)
   end
 
   def allow_scopes(scopes)
@@ -181,6 +195,18 @@ module Blondie
       end
 
       result
+    end
+
+    def method_missing(method_name, *args, &block)
+      if @query.has_key?(method_name.to_s)
+        return @query[method_name.to_s]
+      end
+      begin
+        ConditionString.new(@klass, method_name).parse!
+        return nil
+      rescue ConditionNotParsedError
+        super method_name, *args, &block
+      end
     end
 
   end

@@ -118,6 +118,29 @@ end
 
 describe Blondie::SearchProxy do
 
+  describe '#method_missing' do
+    before do
+      @search = User.search(name_like: 'toto')
+    end
+    context "when method name is a condition with a value" do
+      it "should return value" do
+        @search.name_like.should == 'toto'
+      end
+    end
+    context "when method name looks like a condition" do
+      it "should return nil" do
+        @search.name_equals.should == nil
+      end
+    end
+    context "when method name is not a condition" do
+      it "should raise NoMethodError" do
+        lambda do
+          @search.foobar
+        end.should raise_error NoMethodError
+      end
+    end
+  end
+
   describe "#result" do
 
     context "when search options are nil" do
@@ -217,6 +240,32 @@ describe Blondie::SearchProxy do
       end
     end
 
+  end
+
+  describe Blondie::FormHelper do
+    before do
+      @helper = Helper.new
+    end
+
+    describe '#search_form_for' do
+      it "should call search_form" do
+        @helper.should_receive(:form_tag).with(nil, { method: :get })
+        @helper.search_form_for({})
+      end
+
+      it "should call fields_for" do
+        search = {a: 1}
+        @helper.should_receive(:fields_for).with('q', search)
+        @helper.search_form_for(search)
+      end
+
+      it "should understand the :as option" do
+        search = {a: 1}
+        @helper.should_receive(:fields_for).with('f', search)
+        @helper.search_form_for(search, as: 'f')
+      end
+    end
+    
   end
 
 end
