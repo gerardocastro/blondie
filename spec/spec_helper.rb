@@ -21,6 +21,7 @@ unless ActiveRecord::Base.connection.tables.include?('schema_migrations')
   ActiveRecord::Schema.define(version: 1) do
     create_table 'users' do |t|
       t.string :name
+      t.string :login
       t.boolean :active
       t.integer :posts_count
       t.timestamps
@@ -29,6 +30,8 @@ unless ActiveRecord::Base.connection.tables.include?('schema_migrations')
     create_table 'posts' do |t|
       t.string :title
       t.integer :user_id
+      t.integer :favorite_count
+      t.integer :share_count
       t.timestamps
     end
 

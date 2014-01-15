@@ -127,29 +127,33 @@ describe Blondie::SearchProxy do
 
       describe "the 'like' operator" do
         it "should understand the 'like' operator without modifier" do
-          User.search(name_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%')))
+          User.search(name_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE ((("users"."name" LIKE '%toto%'))))
         end
         it "should understand the 'like' operator with the 'any' modifier" do
-          User.search(name_like_any: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%') OR ("users"."name" LIKE '%tutu%')))
+          User.search(name_like_any: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE ((("users"."name" LIKE '%toto%') OR ("users"."name" LIKE '%tutu%'))))
         end
         it "should understand the 'like' operator with the 'all' modifier" do
-          User.search(name_like_all: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%') AND ("users"."name" LIKE '%tutu%')))
+          User.search(name_like_all: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE ((("users"."name" LIKE '%toto%') AND ("users"."name" LIKE '%tutu%'))))
         end
       end
 
       describe "the 'equals' operator" do
         it "should understand the 'equals' operator without modifier" do
-          User.search(name_equals: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."name" = 'toto')
+          User.search(name_equals: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE ("users"."name" = 'toto'))
         end
         it "should understand the 'equals' operator with the 'any' modifier" do
-          User.search(name_equals_any: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE ("users"."name" IN ('toto','tutu')))
+          User.search(name_equals_any: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" IN ('toto','tutu'))))
         end
         it "should understand the 'equals' operator with the 'all' modifier" do
-          User.search(name_equals_all: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."name" = 'toto' AND "users"."name" = 'tutu')
+          User.search(name_equals_all: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE ("users"."name" = 'toto' AND "users"."name" = 'tutu'))
         end
         it "should typecast values if needed" do
-          User.search(posts_count_equals: '2').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."posts_count" = 2)
+          User.search(posts_count_equals: '2').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE ("users"."posts_count" = 2))
         end
+      end
+
+      it "should understand conditions with 'or'" do
+        User.search(name_like_or_login_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE ((("users"."name" LIKE '%toto%')) OR (("users"."login" LIKE '%toto%'))))
       end
     end
 
@@ -160,19 +164,23 @@ describe Blondie::SearchProxy do
       end
 
       it "should understand the 'like' operator" do
-        User.search(posts_title_like: 'tutu').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE (("posts"."title" LIKE '%tutu%')))
+        User.search(posts_title_like: 'tutu').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE ((("posts"."title" LIKE '%tutu%'))))
       end
 
       it "should understand the 'equals' operator" do
-        User.search(posts_title_equals: 'tutu').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE "posts"."title" = 'tutu')
+        User.search(posts_title_equals: 'tutu').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE ("posts"."title" = 'tutu'))
       end
 
       it "should not join multiple times" do
-        User.search(posts_title_equals: 'tutu', posts_published: '1').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE "posts"."title" = 'tutu' AND "posts"."published" = 't')
+        User.search(posts_title_equals: 'tutu', posts_published: '1').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE ("posts"."title" = 'tutu') AND "posts"."published" = 't')
       end
 
       it "should chain associations" do
         User.search(posts_comments_anonymous: '1').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" INNER JOIN "comments" ON "comments"."post_id" = "posts"."id" WHERE ("author" IS NULL))
+      end
+
+      it "should understand conditions with 'or'" do
+        User.search(posts_favorite_count_equals_or_posts_share_count_equals: 10).result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE ("posts"."favorite_count" = 10 OR "posts"."share_count" = 10))
       end
     end
 

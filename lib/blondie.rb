@@ -91,59 +91,80 @@ module Blondie
     # %{column_name}_%{operator}_%{modifier}
     # %{association}_%{column_name}_%{operator}_%{modifier}
     # %{association}_%{association}_%{column_name}_%{operator}_%{modifier}
+    # %{column_name}_%{operator}_or_%{column_name}_%{operator}
+    # [%{association}_]%{column_name}_%{operator}_or_[%{association}_]%{column_name}_%{operator}
     #
     # Not detected:
     #
     # %{column_name}_or_%{column_name}_%{operator}
-    # %{column_name}_%{operator}_or_%{column_name}_%{operator}
-    # [%{association}_]%{column_name}_%{operator}_or_[%{association}_]%{column_name}_%{operator}
     def result
       result = @klass
       @query.each_pair do |condition_string, value|
 
-        condition = ConditionString.new(@klass, condition_string).parse!
+        query_chunks = []
 
-        if condition.associations.any?
-          if condition.associations.size == 1
-            result = result.joins(condition.associations)
-          else
-            association_chain = condition.associations.reverse[1..-1].inject(condition.associations.last){|m,i| h = {}; h[i] = m; h }
-            result = result.joins(association_chain)
-          end
+        begin
+          conditions = condition_string.to_s.split('_or_').map{|s| ConditionString.new(@klass, s).parse! }
+        rescue ConditionNotParsedError
+          conditions = [ConditionString.new(@klass, condition_string).parse!]
         end
 
-        case condition.modifier
-        when 'all'
-          values = value
-          meta_operator = META_OPERATOR_AND
-        when 'any'
-          values = value
-          meta_operator = META_OPERATOR_OR
-        else
-          values = [value]
-          meta_operator = ''
-        end
+        conditions.each do |condition|
 
-        case condition.operator
-        when 'like'
-          conditions = values.map{ "(#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} LIKE ?)" }
-          bindings = values.map{|v| "%#{v}%" }
-          result = result.where([conditions.join(meta_operator), *bindings])
-        when 'equals'
-          if meta_operator == META_OPERATOR_OR
-            result = result.where("#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} IN (?)", values)
-          else
-            values.each do |v|
-              result = result.where(condition.klass.table_name => { condition.column_name => v })
+          condition_proxy = @klass
+
+          if condition.associations.any?
+            if condition.associations.size == 1
+              result = result.joins(condition.associations)
+            else
+              association_chain = condition.associations.reverse[1..-1].inject(condition.associations.last){|m,i| h = {}; h[i] = m; h }
+              result = result.joins(association_chain)
             end
           end
-        else # a scope that has been whitelisted
-          if value == '1' # @todo isn't it a bit arbitrary? ;)
-            # The join([]) is here in order to use 'merge'. If anyone has a better suggestion, I'll be glad to hear about it.
-            result = result.joins([]).merge(condition.klass.send(condition.operator))
+
+          case condition.modifier
+          when 'all'
+            values = value
+            condition_meta_operator = META_OPERATOR_AND
+          when 'any'
+            values = value
+            condition_meta_operator = META_OPERATOR_OR
+          else
+            values = [value]
+            condition_meta_operator = ''
+          end
+
+          case condition.operator
+          when 'like'
+            sub_conditions = values.map{ "(#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} LIKE ?)" }
+            bindings = values.map{|v| "%#{v}%" }
+            condition_proxy = condition_proxy.where([sub_conditions.join(condition_meta_operator), *bindings])
+          when 'equals'
+            if condition_meta_operator == META_OPERATOR_OR
+              condition_proxy = condition_proxy.where("#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} IN (?)", values)
+            else
+              values.each do |v|
+                condition_proxy = condition_proxy.where(condition.klass.table_name => { condition.column_name => v })
+              end
+            end
+          else # a scope that has been whitelisted
+            # This is directly applied to the result and not the condition_proxy because we cannot use _or_ with scopes.
+            if value == '1' # @todo isn't it a bit arbitrary? ;)
+              # The join([]) is here in order to use 'merge'. If anyone has a better suggestion, I'll be glad to hear about it.
+              result = result.joins([]).merge(condition.klass.send(condition.operator))
+            end
+          end
+
+          if condition_proxy != @klass
+            condition_proxy.to_sql =~ /WHERE (.*)$/
+            query_chunks << $1
           end
         end
+
+        result = result.where(query_chunks.join(META_OPERATOR_OR)) unless query_chunks.empty?
+
       end
+
       result
     end
 
