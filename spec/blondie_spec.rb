@@ -120,6 +120,12 @@ describe Blondie::SearchProxy do
 
   describe "#result" do
 
+    context "when search options are nil" do
+      it "should not raise an error" do
+        User.search(nil).result.to_sql.should == %(SELECT "users".* FROM "users")
+      end
+    end
+
     context "when condition applies to the original class" do
       it "should understand condition that is a scope" do
         User.search(active: '1').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."active" = 't')

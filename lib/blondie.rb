@@ -82,7 +82,7 @@ module Blondie
 
     def initialize(klass, query = {})
       @klass = klass
-      @query = query
+      @query = query || {}
     end
 
     # Detected and used:
@@ -100,7 +100,9 @@ module Blondie
     # [%{association}_]%{column_name}_%{operator}_or_[%{association}_]%{column_name}_%{operator}
     # %{column_name}_or_%{column_name}_%{operator}
     def result
-      result = @klass
+      # The join([]) is here in order to get the proxy instead of the base class.
+      # If anyone has a better suggestion on how to achieve the same, I'll be glad to hear about it.
+      result = @klass.joins([])
       @query.each_pair do |condition_string, value|
 
         query_chunks = []
@@ -159,8 +161,7 @@ module Blondie
           else # a scope that has been whitelisted
             # This is directly applied to the result and not the condition_proxy because we cannot use _or_ with scopes.
             if value == '1' # @todo isn't it a bit arbitrary? ;)
-              # The join([]) is here in order to use 'merge'. If anyone has a better suggestion, I'll be glad to hear about it.
-              result = result.joins([]).merge(condition.klass.send(condition.operator))
+              result = result.merge(condition.klass.send(condition.operator))
             end
           end
 
