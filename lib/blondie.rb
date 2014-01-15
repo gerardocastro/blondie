@@ -25,7 +25,7 @@ module Blondie
     OPERATORS = %w(like equals)
     MODIFIERS = %w(all any)
 
-    attr_reader :klass, :column_name, :associations
+    attr_reader :klass, :column_name, :associations, :string
     attr_accessor :operator, :modifier
 
     def initialize(klass, condition, associations = [])
@@ -66,7 +66,7 @@ module Blondie
         end
       end
 
-      raise ConditionNotParsedError, @string
+      raise ConditionNotParsedError, "#{@string} is not a valid condition"
     end
 
     def partial?
@@ -111,7 +111,7 @@ module Blondie
           conditions = [ConditionString.new(@klass, condition_string).parse!]
         end
 
-        raise ConditionNotParsedError if conditions.last.partial?
+        raise ConditionNotParsedError, "#{conditions.last.string} should have an operator" if conditions.last.partial?
 
         conditions.each do |condition|
 
