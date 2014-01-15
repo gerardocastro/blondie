@@ -152,9 +152,15 @@ describe Blondie::SearchProxy do
         end
       end
 
-      it "should understand conditions with 'or'" do
-        User.search(name_like_or_login_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE ((("users"."name" LIKE '%toto%')) OR (("users"."login" LIKE '%toto%'))))
+      context "when condition has 'or' in it" do
+        it "should understand full syntax" do
+          User.search(name_like_or_login_equals: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE ((("users"."name" LIKE '%toto%')) OR "users"."login" = 'toto'))
+        end
+        it "should understand partial syntaxt" do
+          User.search(name_or_login_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE ((("users"."name" LIKE '%toto%')) OR (("users"."login" LIKE '%toto%'))))
+        end
       end
+
     end
 
     context "when condition applies to an association" do
@@ -179,8 +185,13 @@ describe Blondie::SearchProxy do
         User.search(posts_comments_anonymous: '1').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" INNER JOIN "comments" ON "comments"."post_id" = "posts"."id" WHERE ("author" IS NULL))
       end
 
-      it "should understand conditions with 'or'" do
-        User.search(posts_favorite_count_equals_or_posts_share_count_equals: 10).result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE ("posts"."favorite_count" = 10 OR "posts"."share_count" = 10))
+      context "when condition has 'or' in it" do
+        it "should understand full syntax" do
+          User.search(posts_favorite_count_equals_or_posts_share_count_equals: 10).result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE ("posts"."favorite_count" = 10 OR "posts"."share_count" = 10))
+        end
+        it "should understand partial syntaxt" do
+          User.search(posts_favorite_count_or_posts_share_count_equals: 10).result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE ("posts"."favorite_count" = 10 OR "posts"."share_count" = 10))
+        end
       end
     end
 

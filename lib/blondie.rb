@@ -25,7 +25,8 @@ module Blondie
     OPERATORS = %w(like equals)
     MODIFIERS = %w(all any)
 
-    attr_reader :klass, :operator, :column_name, :modifier, :associations
+    attr_reader :klass, :column_name, :associations
+    attr_accessor :operator, :modifier
 
     def initialize(klass, condition, associations = [])
       @string = condition.to_s
@@ -46,12 +47,12 @@ module Blondie
       end
 
       # 2. column names
-      regexp = /^(#{@klass.column_names.map{|c|Regexp.escape(c)}.join('|')})_(#{OPERATORS.map{|o|Regexp.escape(o)}.join('|')})(_(#{MODIFIERS.map{|m|Regexp.escape(m)}.join('|')}))?$/
+      regexp = /^(#{@klass.column_names.map{|c|Regexp.escape(c)}.join('|')})(_(#{OPERATORS.map{|o|Regexp.escape(o)}.join('|')})(_(#{MODIFIERS.map{|m|Regexp.escape(m)}.join('|')}))?)?$/
 
       if @string =~ regexp
         @column_name = $1
-        @operator = $2
-        @modifier = $4
+        @operator = $3
+        @modifier = $5
         return self
       end
 
@@ -66,6 +67,10 @@ module Blondie
       end
 
       raise ConditionNotParsedError, @string
+    end
+
+    def partial?
+      @operator.blank?
     end
 
   end
@@ -93,9 +98,6 @@ module Blondie
     # %{association}_%{association}_%{column_name}_%{operator}_%{modifier}
     # %{column_name}_%{operator}_or_%{column_name}_%{operator}
     # [%{association}_]%{column_name}_%{operator}_or_[%{association}_]%{column_name}_%{operator}
-    #
-    # Not detected:
-    #
     # %{column_name}_or_%{column_name}_%{operator}
     def result
       result = @klass
@@ -109,7 +111,14 @@ module Blondie
           conditions = [ConditionString.new(@klass, condition_string).parse!]
         end
 
+        raise ConditionNotParsedError if conditions.last.partial?
+
         conditions.each do |condition|
+
+          if condition.partial?
+            condition.operator = conditions.last.operator
+            condition.modifier = conditions.last.modifier
+          end
 
           condition_proxy = @klass
 
