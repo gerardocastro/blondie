@@ -93,6 +93,7 @@ module Blondie
 
     META_OPERATOR_OR = ' OR '
     META_OPERATOR_AND = ' AND '
+    CHECKBOX_TRUE_VALUE = '1'
 
     def initialize(klass, query = {})
       @klass = klass
@@ -115,7 +116,7 @@ module Blondie
     # %{column_name}_or_%{column_name}_%{operator}
     def result
       # The join([]) is here in order to get the proxy instead of the base class.
-      # If anyone has a better suggestion on how to achieve the same, I'll be glad to hear about it.
+      # If anyone has a better suggestion on how to achieve the same effect, I'll be glad to hear about it.
       result = @klass.joins([])
       @query.each_pair do |condition_string, value|
 
@@ -176,7 +177,7 @@ module Blondie
             # This is directly applied to the result and not the condition_proxy because we cannot use _or_ with scopes.
             case condition.klass.allowed_scopes[condition.operator.to_s]
             when 0
-              if value == '1' # @todo isn't it a bit arbitrary? ;)
+              if value == CHECKBOX_TRUE_VALUE
                 result = result.merge(condition.klass.send(condition.operator))
               end
             else
