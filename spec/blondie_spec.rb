@@ -7,13 +7,13 @@ describe Blondie do
       @klass.extend Blondie
     end
     it "should set allowed scopes" do
-      @klass.allow_scopes :a, :b
-      @klass.instance_variable_get(:@allowed_scopes).should == %w(a b)
+      @klass.allow_scopes a: 1, b: 2
+      @klass.instance_variable_get(:@allowed_scopes).should == {'a' => 1, 'b' => 2}
     end
     it "should add scopes to allowed scopes" do
-      @klass.allow_scopes :a, :b
-      @klass.allow_scopes :c, :d
-      @klass.instance_variable_get(:@allowed_scopes).should == %w(a b c d)
+      @klass.allow_scopes a: 1, b: 2
+      @klass.allow_scopes c: 3, d: 4
+      @klass.instance_variable_get(:@allowed_scopes).should == {'a' => 1, 'b' => 2, 'c' => 3, 'd' => 4}
     end
   end
   describe '.allowed_scopes' do
@@ -23,13 +23,13 @@ describe Blondie do
     end
     context "when no scopes are allowed" do
       it "should return an empty array" do
-        @klass.allowed_scopes.should == []
+        @klass.allowed_scopes.should == {}
       end
     end
     context "when scopes are allowed" do
       it "should return allowed scopes" do
-        @klass.allow_scopes :a, :b
-        @klass.allowed_scopes.should == %w(a b)
+        @klass.allow_scopes :a => 1, :b => 2
+        @klass.allowed_scopes.should == {'a' => 1, 'b' => 2}
       end
     end
   end
@@ -123,6 +123,22 @@ describe Blondie::SearchProxy do
     context "when search options are nil" do
       it "should not raise an error" do
         User.search(nil).result.to_sql.should == %(SELECT "users".* FROM "users")
+      end
+    end
+
+    context "when condition is a scope" do
+      context "when scope accepts no arguments" do
+        it "should ignore scope if value is not '1'" do
+          User.search(active: '0').result.to_sql.should == %(SELECT "users".* FROM "users")
+        end
+        it "should apply scope if value is '1'" do
+          User.search(active: '1').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."active" = 't')
+        end
+      end
+      context "when scope accepts an argument" do
+        it "should pass value to the scope" do
+          User.search(id_in_list: '1,2,3').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."id" IN (1, 2, 3))
+        end
       end
     end
 

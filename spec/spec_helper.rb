@@ -45,19 +45,20 @@ class User < ActiveRecord::Base
   has_many :posts
   scope :active, -> { where(active: true) }
   scope :inactive, -> { where(active: false) }
+  scope :id_in_list, lambda { |list| where(id: list.split(/[^\d]+/)) }
 
-  allow_scopes :active
+  allow_scopes active: 0, id_in_list: 1
 end
 
 class Post < ActiveRecord::Base
   scope :published, -> { where(published: true) }
   has_many :comments
 
-  allow_scopes :published
+  allow_scopes published: 0
 end
 
 class Comment < ActiveRecord::Base
   scope :anonymous, -> { where %("author" IS NULL) }
 
-  allow_scopes :anonymous
+  allow_scopes anonymous: 0
 end

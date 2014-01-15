@@ -6,16 +6,16 @@ module Blondie
     SearchProxy.new(self, query)
   end
 
-  def allow_scopes(*scopes)
-    @allowed_scopes ||=[]
-    scopes.each do |scope|
-      @allowed_scopes << scope.to_s
+  def allow_scopes(scopes)
+    @allowed_scopes ||= {}
+    scopes.each_pair do |scope, arity|
+      @allowed_scopes[scope.to_s] = arity
     end
     true
   end
 
   def allowed_scopes
-    @allowed_scopes || []
+    @allowed_scopes || {}
   end
 
   class ConditionNotParsedError < ArgumentError; end
@@ -41,7 +41,7 @@ module Blondie
 
     def parse!
       # 1. Scopes
-      if @klass.allowed_scopes.include?(@string)
+      if @klass.allowed_scopes.keys.include?(@string)
         @operator = @string.intern
         return self
       end
@@ -160,8 +160,13 @@ module Blondie
             end
           else # a scope that has been whitelisted
             # This is directly applied to the result and not the condition_proxy because we cannot use _or_ with scopes.
-            if value == '1' # @todo isn't it a bit arbitrary? ;)
-              result = result.merge(condition.klass.send(condition.operator))
+            case condition.klass.allowed_scopes[condition.operator.to_s]
+            when 0
+              if value == '1' # @todo isn't it a bit arbitrary? ;)
+                result = result.merge(condition.klass.send(condition.operator))
+              end
+            else
+              result = result.merge(condition.klass.send(condition.operator, value))
             end
           end
 
