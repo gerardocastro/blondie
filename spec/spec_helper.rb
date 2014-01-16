@@ -46,8 +46,9 @@ class User < ActiveRecord::Base
   scope :active, -> { where(active: true) }
   scope :inactive, -> { where(active: false) }
   scope :id_in_list, lambda { |list| where(id: list.split(/[^\d]+/)) }
+  scope :ascend_by_name_size, -> { order %(length("users"."name")) }
 
-  allow_scopes active: 0, id_in_list: 1
+  allow_scopes active: 0, id_in_list: 1, ascend_by_name_size: 0
 end
 
 class Post < ActiveRecord::Base

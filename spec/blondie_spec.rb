@@ -16,6 +16,19 @@ describe Blondie do
       @klass.instance_variable_get(:@allowed_scopes).should == {'a' => 1, 'b' => 2, 'c' => 3, 'd' => 4}
     end
   end
+  describe '.scope_allowed?' do
+    context "when scope is allowed" do
+      it "should return true" do
+        User.scope_allowed?(:active).should be_true
+        User.scope_allowed?('active').should be_true
+      end
+    end
+    context "when scope is not allowed" do
+      it "should return false" do
+        User.scope_allowed?('foobar').should be_false
+      end
+    end
+  end
   describe '.allowed_scopes' do
     before do
       @klass = Class.new
@@ -120,23 +133,54 @@ describe Blondie::SearchProxy do
 
   describe '#method_missing' do
     before do
-      @search = User.search(name_like: 'toto')
+      @search = User.search
     end
-    context "when method name is a condition with a value" do
-      it "should return value" do
-        @search.name_like.should == 'toto'
+    context "without the '=' operator" do
+      context "when method name is a condition" do
+        it "should return value if it exists" do
+          @search = User.search(name_like: 'toto')
+          @search.name_like.should == 'toto'
+        end
+        it "should return nil if value is not set" do
+          @search.name_like.should == nil
+        end
+      end
+      context "when method name is 'order'" do
+        it "should return value if it exists" do
+          @search = User.search(order: :ascend_by_name)
+          @search.order.should == :ascend_by_name
+        end
+        it "should return nil if value is not set" do
+          @search.order.should == nil
+        end
+      end
+      context "when method name is not a condition" do
+        it "should raise NoMethodError" do
+          lambda do
+            @search.foobar
+          end.should raise_error NoMethodError
+        end
       end
     end
-    context "when method name looks like a condition" do
-      it "should return nil" do
-        @search.name_equals.should == nil
+    context "with the '=' operator" do
+      context "when method name is a condition" do
+        it "should set condition" do
+          @search.name_like = 'toto'
+          @search.instance_variable_get(:@query)['name_like'].should == 'toto'
+        end
       end
-    end
-    context "when method name is not a condition" do
-      it "should raise NoMethodError" do
-        lambda do
-          @search.foobar
-        end.should raise_error NoMethodError
+      context "when method name is 'order'" do
+        it "should set order" do
+          @search.order = 'ascend_by_name'
+          @search.instance_variable_get(:@query)['order'].should == 'ascend_by_name'
+        end
+      end
+      context "when method name is not a condition" do
+        it "should raise NoMethodError" do
+          lambda do
+            @search.foobar= 'barfoo'
+          end.should raise_error NoMethodError
+        end
       end
     end
   end
@@ -158,6 +202,10 @@ describe Blondie::SearchProxy do
 
       it "should order on association" do
         User.search(order: 'descend_by_posts_comments_author').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" INNER JOIN "comments" ON "comments"."post_id" = "posts"."id"  ORDER BY "comments"."author" DESC)
+      end
+
+      it "should order on scope" do
+        User.search(order: 'ascend_by_name_size').result.to_sql.should == %(SELECT "users".* FROM "users"   ORDER BY length("users"."name"))
       end
 
       context "when order in invalid" do

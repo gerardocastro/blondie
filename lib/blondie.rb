@@ -32,6 +32,10 @@ module Blondie
     @allowed_scopes || {}
   end
 
+  def scope_allowed?(scope_name)
+    allowed_scopes.keys.include?(scope_name.to_s)
+  end
+
   class ConditionNotParsedError < ArgumentError; end
 
   class ConditionString
@@ -55,7 +59,7 @@ module Blondie
 
     def parse!
       # 1. Scopes
-      if @klass.allowed_scopes.keys.include?(@string)
+      if @klass.scope_allowed?(@string)
         @operator = @string.intern
         return self
       end
@@ -121,7 +125,7 @@ module Blondie
       @query.each_pair do |condition_string, value|
 
         if condition_string == 'order'
-          apply_order proxy, value
+          proxy = apply_order proxy, value
         else
           begin
             conditions = condition_string.to_s.split('_or_').map{|s| ConditionString.new(@klass, s).parse! }
@@ -140,26 +144,36 @@ module Blondie
     end
 
     def apply_order(proxy, order_string)
-      order_string.to_s =~ /^((ascend|descend)_by_)?(.*)$/
-      direction = $2 == 'descend' ? 'DESC' : 'ASC'
-      begin
-        condition = ConditionString.new(@klass, $3).parse!
-        raise ConditionNotParsedError unless condition.partial?
-      rescue ConditionNotParsedError
-        raise ArgumentError, "'#{order_string}' is not a valid order string"
-      end
+      if @klass.scope_allowed?(order_string.to_s)
+        proxy = proxy.send(order_string)
+      else
+        order_string.to_s =~ /^((ascend|descend)_by_)?(.*)$/
+        direction = $2 == 'descend' ? 'DESC' : 'ASC'
+        begin
+          condition = ConditionString.new(@klass, $3).parse!
+          raise ConditionNotParsedError unless condition.partial?
+        rescue ConditionNotParsedError
+          raise ArgumentError, "'#{order_string}' is not a valid order string"
+        end
 
-      proxy.order! "#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} #{direction}"
-      proxy.joins! chain_associations(condition.associations) unless condition.associations.empty?
+        proxy.order! "#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} #{direction}"
+        proxy.joins! chain_associations(condition.associations) unless condition.associations.empty?
+      end
+      proxy
     end
 
     def method_missing(method_name, *args, &block)
-      if @query.has_key?(method_name.to_s)
-        return @query[method_name.to_s]
-      end
+      method_name.to_s =~ /^([^=]+)(=)?$/
+      stringified_method_name = $1
+      operator = $2
       begin
-        ConditionString.new(@klass, method_name).parse!
-        return nil
+        unless @query.has_key?(stringified_method_name) or stringified_method_name == 'order'
+          ConditionString.new(@klass, stringified_method_name).parse!
+        end
+        if operator == '='
+          @query[stringified_method_name] = args.first
+        end
+        return @query[stringified_method_name]
       rescue ConditionNotParsedError
         super method_name, *args, &block
       end
