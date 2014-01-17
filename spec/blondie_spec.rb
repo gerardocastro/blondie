@@ -1,7 +1,31 @@
 require File.expand_path('../spec_helper', __FILE__)
 
 describe Blondie do
-  describe '.allow_scopes' do
+
+  describe '.safe_search' do
+    context "when safe_search has not been set" do
+      it "should return default value" do
+        Blondie.instance_variable_set(:@safe_search, nil)
+        Blondie.safe_search.should == Blondie::DEFAULT_SAFE_SEARCH
+      end
+    end
+    context "when safe_search has been set" do
+      it "should return selected value" do
+        Blondie.instance_variable_set(:@safe_search, false)
+        Blondie.safe_search.should == false
+      end
+    end
+  end
+
+  describe '.safe_search=' do
+    it "should set safe_search instance variable" do
+      Blondie.instance_variable_set(:@safe_search, nil)
+      Blondie.safe_search = false
+      Blondie.instance_variable_get(:@safe_search).should == false
+    end
+  end
+
+  describe '#allow_scopes' do
     before do
       @klass = Class.new
       @klass.extend Blondie
@@ -16,7 +40,7 @@ describe Blondie do
       @klass.instance_variable_get(:@allowed_scopes).should == {'a' => 1, 'b' => 2, 'c' => 3, 'd' => 4}
     end
   end
-  describe '.scope_allowed?' do
+  describe '#scope_allowed?' do
     context "when scope is allowed" do
       it "should return true" do
         User.scope_allowed?(:active).should be_true
@@ -29,7 +53,7 @@ describe Blondie do
       end
     end
   end
-  describe '.allowed_scopes' do
+  describe '#allowed_scopes' do
     before do
       @klass = Class.new
       @klass.extend Blondie
@@ -154,6 +178,15 @@ describe Blondie::SearchProxy do
           @search.order.should == nil
         end
       end
+      context "when method name is a condition with 'or'" do
+        it "should return value if it exists" do
+          @search = User.search(name_like_or_login_like: 'toto')
+          @search.name_like_or_login_like.should == 'toto'
+        end
+        it "should return nil if value is not set" do
+          @search.name_like_or_login_like.should == nil
+        end
+      end
       context "when method name is not a condition" do
         it "should raise NoMethodError" do
           lambda do
@@ -186,6 +219,29 @@ describe Blondie::SearchProxy do
   end
 
   describe "#result" do
+    context "when one condition is not valid" do
+      after do
+        Blondie.instance_variable_set(:@safe_search, nil)
+      end
+      context "when safe search is active" do
+        before do
+          Blondie.safe_search = true
+        end
+        it "should return an empty set" do
+          User.search(foobar: true).result.should == []
+        end
+      end
+      context "when safe search is not active" do
+        before do
+          Blondie.safe_search = false
+        end
+        it "should raise an error" do
+          lambda do
+            User.search(foobar: true).result
+          end.should raise_error Blondie::ConditionNotParsedError
+        end
+      end
+    end
 
     context "with the order option" do
       it "should use 'ascend' by default" do
@@ -209,10 +265,23 @@ describe Blondie::SearchProxy do
       end
 
       context "when order in invalid" do
-        it "should raise an error" do
-          lambda do
-            User.search(order: 'toto').result
-          end.should raise_error ArgumentError
+        context "when safe search is enabled" do
+          before do
+            Blondie.safe_search = true
+          end
+          it "should return an empty set" do
+            User.search(order: 'toto').result.should == []
+          end
+        end
+        context "when safe search is disabled" do
+          before do
+            Blondie.safe_search = false
+          end
+          it "should raise an error" do
+            lambda do
+              User.search(order: 'toto').result
+            end.should raise_error ArgumentError
+          end
         end
       end
     end

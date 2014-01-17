@@ -2,6 +2,16 @@ require 'active_record'
 
 module Blondie
 
+  DEFAULT_SAFE_SEARCH = true
+
+  def self.safe_search=(value)
+    @safe_search = !!value
+  end
+
+  def self.safe_search
+    @safe_search.nil? ? DEFAULT_SAFE_SEARCH : @safe_search
+  end
+
   module FormHelper
 
     DEFAULT_AS = 'q'
@@ -99,6 +109,8 @@ module Blondie
     META_OPERATOR_AND = ' AND '
     CHECKBOX_TRUE_VALUE = '1'
 
+    attr_reader :query
+
     def initialize(klass, query = {})
       @klass = klass
       @query = query || {}
@@ -124,18 +136,25 @@ module Blondie
       proxy = @klass.joins([])
       @query.each_pair do |condition_string, value|
 
-        if condition_string == 'order'
-          proxy = apply_order proxy, value
-        else
-          begin
-            conditions = condition_string.to_s.split('_or_').map{|s| ConditionString.new(@klass, s).parse! }
-          rescue ConditionNotParsedError
-            conditions = [ConditionString.new(@klass, condition_string).parse!]
+        next if value.blank?
+
+        begin
+
+          if condition_string == 'order'
+            proxy = apply_order proxy, value
+          else
+            conditions = conditions_from_condition_string condition_string
+
+            raise ConditionNotParsedError, "#{conditions.last.string} should have an operator" if conditions.last.partial?
+
+            proxy = apply_conditions(proxy, conditions, value)
           end
-
-          raise ConditionNotParsedError, "#{conditions.last.string} should have an operator" if conditions.last.partial?
-
-          proxy = apply_conditions(proxy, conditions, value)
+        rescue ArgumentError, ConditionNotParsedError => error
+          if Blondie.safe_search
+            return @klass.none
+          else
+            raise error
+          end
         end
 
       end
@@ -168,7 +187,7 @@ module Blondie
       operator = $2
       begin
         unless @query.has_key?(stringified_method_name) or stringified_method_name == 'order'
-          ConditionString.new(@klass, stringified_method_name).parse!
+          conditions_from_condition_string stringified_method_name
         end
         if operator == '='
           @query[stringified_method_name] = args.first
@@ -180,6 +199,15 @@ module Blondie
     end
 
     private
+
+    def conditions_from_condition_string(condition_string)
+      begin
+        conditions = condition_string.to_s.split('_or_').map{|s| ConditionString.new(@klass, s).parse! }
+      rescue ConditionNotParsedError
+        conditions = [ConditionString.new(@klass, condition_string).parse!]
+      end
+      conditions
+    end
 
     def chain_associations(associations)
       associations.reverse[1..-1].inject(associations.last){|m,i| h = {}; h[i] = m; h }
