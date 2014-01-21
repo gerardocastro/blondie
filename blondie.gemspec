@@ -4,9 +4,11 @@ Gem::Specification.new do |gem|
   gem.version     = '0.0.1'
   gem.date        = '2014-01-14'
   gem.summary     = 'A searchlogic-like gem for Rails 4'
-  gem.description = 'A searchlogic-like gem for Rails 4'
+  gem.description = 'Blondie removes the hassle of creating complex search pages for your database records.'
   gem.authors     = ['Benoît Dinocourt']
   gem.email       = 'ghrind@gmail.com'
+  gem.licenses    = ['MIT']
+  gem.homepage    = "https://github.com/Ghrind/blondie"
 
   gem.files         = `git ls-files`.split($\)
   gem.test_files    = gem.files.grep(%r{^(test|spec|features)/})
