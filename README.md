@@ -132,7 +132,8 @@ Once you've created your search instance, you can easily change the conditions l
 
     search.posts_content_like_any = %w(ruby rails) # Adds condition on posts content
 
-    search.result # Actually parses the conditions, and returns the object on which you can call .first, .all, .paginate, ...
+    search.result # Actually parses the conditions
+                  # and returns the object on which you can call .first, .all, .paginate, ...
 
 ### Order your search
 
@@ -149,7 +150,7 @@ Or, if you already have a search instance :
 
 Let's see how to use Blondie to create rich search forms easily.
 
-    # In your controller
+In your controller (using https://github.com/mislav/will\_paginate)
 
     def index
       # Use provided search query or a default one
@@ -158,15 +159,15 @@ Let's see how to use Blondie to create rich search forms easily.
       # Use provided order or a default one
       @search.order ||= :descend_by_posts_count
 
-      # Actually do the query (I'm using https://github.com/mislav/will_paginate here)
+      # Actually do the query
       @users = @search.result.paginate(page: params[:page])
     end
 
-    # In your model
+In your model
 
     allowed_scopes active_writers: 0, ... # Whatever scopes you want to search for
 
-    # In your view (this is HAML)
+In your view (this is HAML)
 
     = search_form_for @search do |f|
       = f.label :name_like
@@ -180,7 +181,7 @@ Let's see how to use Blondie to create rich search forms easily.
         Active writers
 
       = f.label :order
-      = f.select :order, %w(ascend_by_id descend_by_id ascend_by_posts_count descend_by_posts_count).map{|i|[i.humanize, i]}
+      = f.select :order, %w(ascend_by_posts_count descend_by_posts_count).map{|i|[i.humanize, i]}
 
       = f.submit 'Search'
 
