@@ -150,7 +150,7 @@ Or, if you already have a search instance :
 
 Let's see how to use Blondie to create rich search forms easily.
 
-In your controller (using https://github.com/mislav/will\_paginate)
+In your controller (using https://github.com/mislav/will_paginate)
 
     def index
       # Use provided search query or a default one
