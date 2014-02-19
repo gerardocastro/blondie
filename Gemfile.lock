@@ -1,8 +1,8 @@
 PATH
   remote: .
   specs:
-    blondie (0.0.1)
-      activerecord (= 4.0.2)
+    blondie (0.0.2)
+      activerecord (~> 4.0.2)
 
 GEM
   remote: https://rubygems.org/
@@ -47,5 +47,5 @@ PLATFORMS
 
 DEPENDENCIES
   blondie!
-  rspec (= 2.14.1)
-  sqlite3 (= 1.3.8)
+  rspec (~> 2.14.1)
+  sqlite3 (~> 1.3.8)
