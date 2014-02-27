@@ -48,7 +48,10 @@ class User < ActiveRecord::Base
   scope :id_in_list, lambda { |list| where(id: list.split(/[^\d]+/)) }
   scope :ascend_by_name_size, -> { order %(length("users"."name")) }
 
-  allow_scopes active: 0, id_in_list: 1, ascend_by_name_size: 0
+  # The joins in this scope is here for the sole purpose of testing
+  scope :reverse_name_equals, lambda { |name| joins(:posts).where(name: name.reverse) }
+
+  allow_scopes active: 0, id_in_list: 1, ascend_by_name_size: 0, reverse_name_equals: 1
 end
 
 class Post < ActiveRecord::Base

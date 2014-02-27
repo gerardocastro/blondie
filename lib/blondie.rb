@@ -1,4 +1,5 @@
 require 'active_record'
+require 'or_scopes'
 
 module Blondie
 
@@ -130,6 +131,8 @@ module Blondie
     # %{column_name}_%{operator}_or_%{column_name}_%{operator}
     # [%{association}_]%{column_name}_%{operator}_or_[%{association}_]%{column_name}_%{operator}
     # %{column_name}_or_%{column_name}_%{operator}
+    # %{column_name}_%{operator}_or_%{scope}
+    # %{scope}_or_%{column_name}_%{operator}
     def result
       # The join([]) is here in order to get the proxy instead of the base class.
       # If anyone has a better suggestion on how to achieve the same effect, I'll be glad to hear about it.
@@ -217,14 +220,19 @@ module Blondie
 
       query_chunks = []
 
-      conditions.each do |condition|
+      condition_proxy = @klass.joins({})
+
+      conditions.each_with_index do |condition, index|
+
+        if index > 0
+          condition_proxy = condition_proxy.or
+        end
 
         if condition.partial?
           condition.operator = conditions.last.operator
           condition.modifier = conditions.last.modifier
         end
 
-        condition_proxy = @klass
 
         if condition.associations.any?
           proxy = proxy.joins(chain_associations(condition.associations))
@@ -256,24 +264,19 @@ module Blondie
             end
           end
         else # a scope that has been whitelisted
-          # This is directly applied to the proxy and not the condition_proxy because we cannot use _or_ with scopes.
           case condition.klass.allowed_scopes[condition.operator.to_s]
           when 0
+            # Aritty of the scope is > 0
             if value == CHECKBOX_TRUE_VALUE
-              proxy = proxy.merge(condition.klass.send(condition.operator))
+              condition_proxy = condition_proxy.merge(condition.klass.send(condition.operator))
             end
           else
-            proxy = proxy.merge(condition.klass.send(condition.operator, value))
+            condition_proxy = condition_proxy.merge(condition.klass.send(condition.operator, value))
           end
-        end
-
-        if condition_proxy != @klass
-          condition_proxy.to_sql =~ /WHERE (.*)$/
-          query_chunks << $1
         end
       end
 
-      proxy = proxy.where(query_chunks.join(META_OPERATOR_OR)) unless query_chunks.empty?
+      proxy = proxy.merge(condition_proxy)
 
       proxy
     end

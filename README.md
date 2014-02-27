@@ -89,7 +89,7 @@ All the basic operators (like, equals, ...) can be modified by \_any and \_all.
 
 ### Combining conditions with 'OR'
 
-You can combine all conditions by using '\_or\_' in your condition.
+You can combine all conditions and scopes by using '\_or\_' in your condition.
 
     User.search(name_like_or_login_equals: 'dav').result
 
