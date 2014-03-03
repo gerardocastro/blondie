@@ -2,6 +2,33 @@ require File.expand_path('../spec_helper', __FILE__)
 
 describe Blondie do
 
+  describe '#search' do
+    it "should create a new SearchProxy instance" do
+      User.search.class.should == Blondie::SearchProxy
+    end
+    it "should stringify keys of the query" do
+      proxy = Blondie::SearchProxy.new(User, {})
+      Blondie::SearchProxy.should_receive(:new).with(anything, 'name_equals' => 'toto').and_return(proxy)
+      User.search(name_equals: 'toto').should == proxy
+    end
+    it "should create a proxy with the right class" do
+      proxy = Blondie::SearchProxy.new(User, {})
+      Blondie::SearchProxy.should_receive(:new).with(User, anything).and_return(proxy)
+      User.search(name_equals: 'toto').should == proxy
+    end
+    context "when a block is given" do
+      it "should apply block to query before instanciating proxy" do
+        proxy = Blondie::SearchProxy.new(User, {})
+        Blondie::SearchProxy.should_receive(:new).with(anything, {'foobar' => 'barfoo', 'toto' => 'tutu', 'add_me' => '1'}).and_return(proxy)
+        User.search(foobar: 'barfoo', toto: 'titi', erase_me: '1') do |q|
+          q.delete(:erase_me)
+          q[:toto] = 'tutu'
+          q[:add_me] = '1'
+        end
+      end
+    end
+  end
+
   describe '.safe_search' do
     context "when safe_search has not been set" do
       it "should return default value" do

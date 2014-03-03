@@ -27,8 +27,12 @@ module Blondie
     end
   end
 
-  def search(query = {})
-    SearchProxy.new(self, (query || {}).stringify_keys)
+  def search(query = nil, &block)
+    query ||= {}
+    if block_given?
+      yield(query)
+    end
+    SearchProxy.new(self, query.stringify_keys)
   end
 
   def allow_scopes(scopes)
