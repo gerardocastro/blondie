@@ -29,10 +29,7 @@ module Blondie
 
   def search(query = nil, &block)
     query ||= {}
-    if block_given?
-      yield(query)
-    end
-    SearchProxy.new(self, query.stringify_keys)
+    SearchProxy.new(self, query, &block)
   end
 
   def allow_scopes(scopes)
@@ -116,9 +113,10 @@ module Blondie
 
     attr_reader :query
 
-    def initialize(klass, query = {})
+    def initialize(klass, query = {}, &block)
       @klass = klass
-      @query = query || {}
+      @query = query.stringify_keys || {}
+      @parser = block
     end
 
     # Detected and used:
@@ -141,7 +139,9 @@ module Blondie
       # The join([]) is here in order to get the proxy instead of the base class.
       # If anyone has a better suggestion on how to achieve the same effect, I'll be glad to hear about it.
       proxy = @klass.joins([])
-      @query.each_pair do |condition_string, value|
+      query = @query.dup
+      @parser.call(query) if @parser
+      query.each_pair do |condition_string, value|
 
         next if value.blank?
 
@@ -224,11 +224,13 @@ module Blondie
 
       query_chunks = []
 
-      condition_proxy = @klass.joins({})
+      condition_proxy = nil
 
       conditions.each_with_index do |condition, index|
 
-        if index > 0
+        if index == 0
+          condition_proxy = (condition.klass || proxy ).joins([])
+        else
           condition_proxy = condition_proxy.or
         end
 
@@ -236,7 +238,6 @@ module Blondie
           condition.operator = conditions.last.operator
           condition.modifier = conditions.last.modifier
         end
-
 
         if condition.associations.any?
           proxy = proxy.joins(chain_associations(condition.associations))
@@ -272,10 +273,10 @@ module Blondie
           when 0
             # Aritty of the scope is > 0
             if value == CHECKBOX_TRUE_VALUE
-              condition_proxy = condition_proxy.merge(condition.klass.send(condition.operator))
+              condition_proxy = condition_proxy.send(condition.operator)
             end
           else
-            condition_proxy = condition_proxy.merge(condition.klass.send(condition.operator, value))
+            condition_proxy = condition_proxy.send(condition.operator, value)
           end
         end
       end

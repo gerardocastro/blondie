@@ -6,26 +6,15 @@ describe Blondie do
     it "should create a new SearchProxy instance" do
       User.search.class.should == Blondie::SearchProxy
     end
-    it "should stringify keys of the query" do
+    it "should pass the query to the proxy" do
       proxy = Blondie::SearchProxy.new(User, {})
-      Blondie::SearchProxy.should_receive(:new).with(anything, 'name_equals' => 'toto').and_return(proxy)
+      Blondie::SearchProxy.should_receive(:new).with(anything, name_equals: 'toto').and_return(proxy)
       User.search(name_equals: 'toto').should == proxy
     end
     it "should create a proxy with the right class" do
       proxy = Blondie::SearchProxy.new(User, {})
       Blondie::SearchProxy.should_receive(:new).with(User, anything).and_return(proxy)
       User.search(name_equals: 'toto').should == proxy
-    end
-    context "when a block is given" do
-      it "should apply block to query before instanciating proxy" do
-        proxy = Blondie::SearchProxy.new(User, {})
-        Blondie::SearchProxy.should_receive(:new).with(anything, {'foobar' => 'barfoo', 'toto' => 'tutu', 'add_me' => '1'}).and_return(proxy)
-        User.search(foobar: 'barfoo', toto: 'titi', erase_me: '1') do |q|
-          q.delete(:erase_me)
-          q[:toto] = 'tutu'
-          q[:add_me] = '1'
-        end
-      end
     end
   end
 
@@ -246,6 +235,15 @@ describe Blondie::SearchProxy do
   end
 
   describe "#result" do
+    context "when a block is given" do
+      it "should apply block to query before using it" do
+        User.search('foobar' => 'barfoo'){|q| q.delete('foobar'); q['name_equals'] = 'Jack'}.result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."name" = 'Jack')
+      end
+    end
+    it "should stringify the query" do
+      proxy = User.search(foobar: 'barfoo')
+      proxy.instance_variable_get(:@query).should == { 'foobar' => 'barfoo' }
+    end
     context "when one condition is not valid" do
       after do
         Blondie.instance_variable_set(:@safe_search, nil)

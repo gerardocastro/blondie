@@ -17,7 +17,7 @@ Currently, the following things are missing:
 
 ## Install
 
-As usual, add it to your Gemfile:
+As usual, add blondie to your Gemfile:
 
     gem 'blondie', :git => 'git@github.com:Ghrind/blondie.git', :branch => 'master'
 
@@ -150,7 +150,7 @@ Or, if you already have a search instance :
 
 Let's see how to use Blondie to create rich search forms easily.
 
-In your controller (using https://github.com/mislav/will_paginate)
+In your controller (using https://github.com/mislav/will_paginate).
 
     def index
       # Use provided search query or a default one
@@ -202,3 +202,28 @@ When developping, you'll probably want it to raise an error instead. You can use
     # config/initializers/blondie.rb
 
     Blondie.safe_search = !Rails.env.development?
+
+### Manipulating options
+
+If you wish to add your own logic when parsing the query, you can add a block to your search.
+
+    # The model
+    class User
+      scope :male, -> { where gender: 0 }
+      scope :female, -> { where gender: 1 }
+    end
+
+    # In the controller
+    @search = User.search(params[:q]) do |q|
+      # Use 'or' instead of 'and' when searching for both male and female to avoid returning an empty set.
+      # This will not return users whose gender is unknown.
+      if q['male'] == '1' && q['female'] == '1'
+        q.delete('male')
+        q.delete('female')
+        q['male_or_female'] == '1'
+      end
+    end
+
+Remember that all the keys of the query are stringified before being sent in your block.
+
+Note that the original query will not be altered in the process.
