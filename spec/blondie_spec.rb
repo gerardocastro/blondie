@@ -89,7 +89,7 @@ describe Blondie do
 end
 
 describe Blondie::ConditionString do
-  context "when the condition is an allowed scope" do
+  context "when the condition is an allowed scope (class)" do
     it "should allow the use of the scope" do
       cs = Blondie::ConditionString.new(User, 'active').parse!
       cs.operator.should == :active
@@ -97,6 +97,23 @@ describe Blondie::ConditionString do
       cs.column_name.should be_nil
       cs.modifier.should be_nil
       cs.klass.should == User
+    end
+  end
+  context "when the condition is an allowed scope (instance)" do
+    it "should allow the use of the scope" do
+      cs = Blondie::ConditionString.new(User, 'inactive', [], {inactive: 0}).parse!
+      cs.operator.should == :inactive
+      cs.associations.should == []
+      cs.column_name.should be_nil
+      cs.modifier.should be_nil
+      cs.klass.should == User
+    end
+  end
+  context "when condition is not an allowed scope" do
+    it "should raise an error" do
+      lambda do
+        Blondie::ConditionString.new(User, :inactive).parse!
+      end.should raise_error Blondie::ConditionNotParsedError
     end
   end
   context "when the condition is a column name with an operator" do
@@ -120,7 +137,7 @@ describe Blondie::ConditionString do
     end
   end
   context "when the condition is about associations" do
-    context "when the condition is an allowed scope" do
+    context "when the condition is an allowed scope (class)" do
       it "should allow the use of the scope" do
         cs = Blondie::ConditionString.new(User, 'posts_comments_anonymous').parse!
         cs.operator.should == :anonymous
@@ -128,6 +145,23 @@ describe Blondie::ConditionString do
         cs.column_name.should be_nil
         cs.modifier.should be_nil
         cs.klass.should == Comment
+      end
+    end
+    context "when the condition is an allowed scope (instance)" do
+      it "should allow the use of the scope" do
+        cs = Blondie::ConditionString.new(User, 'posts_comments_authored', [], { posts_comments: { authored: 0 } }).parse!
+        cs.operator.should == :authored
+        cs.associations.should == [:posts, :comments]
+        cs.column_name.should be_nil
+        cs.modifier.should be_nil
+        cs.klass.should == Comment
+      end
+    end
+    context "when condition is not an allowed scope" do
+      it "should raise an error" do
+        lambda do
+          Blondie::ConditionString.new(User, 'posts_comments_authored').parse!
+        end.should raise_error Blondie::ConditionNotParsedError
       end
     end
     context "when the condition is a column name with an operator" do
@@ -149,13 +183,6 @@ describe Blondie::ConditionString do
           cs.modifier.should == 'any'
         end
       end
-    end
-  end
-  context "when condition is not an allowed scope" do
-    it "should raise an error" do
-      lambda do
-        Blondie::ConditionString.new(User, :inactive).parse!
-      end.should raise_error Blondie::ConditionNotParsedError
     end
   end
   context "when condition can't be parsed" do
@@ -350,6 +377,36 @@ describe Blondie::SearchProxy do
         end
       end
 
+      describe "the 'greater_than' operator" do
+        it "should be understood without modifier" do
+          Post.search(share_count_greater_than: 5).result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" > 5))
+        end
+        it "should be understood with the 'any' modifier" do
+          Post.search(share_count_greater_than_any: [5,3]).result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" > 3))
+        end
+        it "should be understood with the 'all' modifier" do
+          Post.search(share_count_greater_than_all: [5,3]).result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" > 5))
+        end
+        it "should typecast values if needed" do
+          Post.search(share_count_greater_than: '2').result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" > 2))
+        end
+      end
+
+      describe "the 'lower_than' operator" do
+        it "should be understood without modifier" do
+          Post.search(share_count_lower_than: 5).result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" < 5))
+        end
+        it "should be understood with the 'any' modifier" do
+          Post.search(share_count_lower_than_any: [5,3]).result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" < 5))
+        end
+        it "should be understood with the 'all' modifier" do
+          Post.search(share_count_lower_than_all: [5,3]).result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" < 3))
+        end
+        it "should typecast values if needed" do
+          Post.search(share_count_lower_than: '2').result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" < 2))
+        end
+      end
+
       describe "the 'equals' operator" do
         it "should understand the 'equals' operator without modifier" do
           User.search(name_equals: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."name" = 'toto')
@@ -369,11 +426,11 @@ describe Blondie::SearchProxy do
         it "should understand full syntax" do
           User.search(name_like_or_login_equals: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (((("users"."name" LIKE '%toto%')) OR "users"."login" = 'toto')))
         end
-        it "should understand partial syntaxt" do
+        it "should understand partial syntax" do
           User.search(name_or_login_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (((("users"."name" LIKE '%toto%')) OR (("users"."login" LIKE '%toto%')))))
         end
         it "should mix scopes and basic operators" do
-          User.search(reverse_name_equals_or_id_equals: '1').result.to_sql.should == %(SELECT \"users\".* FROM \"users\" INNER JOIN \"posts\" ON \"posts\".\"user_id\" = \"users\".\"id\" WHERE ((\"users\".\"name\" = '1' OR \"users\".\"id\" = 1)))
+          User.search(reverse_name_equals_or_id_equals: '1').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE (("users"."name" = '1' OR "users"."id" = 1)))
         end
       end
 
@@ -381,8 +438,14 @@ describe Blondie::SearchProxy do
 
     context "when condition applies to an association" do
 
-      it "should understand condition that is a scope" do
+      it "should understand condition that is a scope (class)" do
         User.search(posts_published: '1').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE "posts"."published" = 't')
+      end
+
+      it "should understand condition that is a scope (instance)" do
+        search = User.search({posts_comments_authored: '1'})
+        search.allow_scopes({posts_comments: {authored: 0}})
+        search.result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" INNER JOIN "comments" ON "comments"."post_id" = "posts"."id" WHERE ("author" IS NOT NULL))
       end
 
       it "should understand the 'like' operator" do
@@ -391,6 +454,14 @@ describe Blondie::SearchProxy do
 
       it "should understand the 'equals' operator" do
         User.search(posts_title_equals: 'tutu').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE "posts"."title" = 'tutu')
+      end
+
+      it "should understand the 'greater_than' operator" do
+        Post.search(share_count_greater_than: '3').result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" > 3))
+      end
+
+      it "should understand the 'lower_than' operator" do
+        Post.search(share_count_lower_than: '3').result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" < 3))
       end
 
       it "should not join multiple times" do

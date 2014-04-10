@@ -13,7 +13,7 @@ This gem is currently in alpha stage. Not all the features are yet implemented a
 Currently, the following things are missing:
 
 * Can't search on polymorphic associations.
-* Most condition operator (greater than, lower than, not like, ends with, blank, does not equal, etc.) aren't implemented.
+* Most condition operator (not like, ends with, blank, does not equal, etc.) aren't implemented.
 
 ## Install
 
@@ -69,12 +69,17 @@ As scopes may need arguments, you must also specify the arity of your scope to B
       scope :admins, -> { where(admin: true) }
       scope :active_since, -> (number) { where("activated_at >= ?", number.days.ago) }
 
+      # Scopes allowed here will be available for all the searches accross your application
       allow_scopes active_writers: 0, active_since: 1
     end
 
     User.search(active_writers: '1').result # Equivalent to User.active_writers
     User.search(active_since: 7).result     # Equivalent to User.active_since(7)
     User.search(admins: '1').result         # The condition will not be recognized
+
+    search = User.search(active_writers: '1')
+    search.allow_scopes(active_writers: 0) # Allow using this scope for this search only
+    search.result
 
 When a scope takes no arguments, passing any other value than '1' will just ignore the condition.
 
@@ -156,16 +161,15 @@ In your controller (using https://github.com/mislav/will_paginate).
       # Use provided search query or a default one
       @search = User.search(params[:q] || {active_writers: '1'})
 
+      # Allow some scopes to be used by your search
+      @search.allow_scopes active_writers: 0
+
       # Use provided order or a default one
       @search.order ||= :descend_by_posts_count
 
       # Actually do the query
       @users = @search.result.paginate(page: params[:page])
     end
-
-In your model
-
-    allowed_scopes active_writers: 0, ... # Whatever scopes you want to search for
 
 In your view (this is HAML)
 

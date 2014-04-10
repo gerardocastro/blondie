@@ -63,6 +63,7 @@ end
 
 class Comment < ActiveRecord::Base
   scope :anonymous, -> { where %("author" IS NULL) }
+  scope :authored, -> { where %("author" IS NOT NULL) }
 
   allow_scopes anonymous: 0
 end

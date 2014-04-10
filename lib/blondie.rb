@@ -33,34 +33,31 @@ module Blondie
   end
 
   def allow_scopes(scopes)
-    @allowed_scopes ||= {}
-    scopes.each_pair do |scope, arity|
-      @allowed_scopes[scope.to_s] = arity
-    end
-    true
+    allowed_scopes.merge!(scopes)
   end
 
   def allowed_scopes
-    @allowed_scopes || {}
+    @allowed_scopes ||= ActiveSupport::HashWithIndifferentAccess.new
   end
 
   def scope_allowed?(scope_name)
-    allowed_scopes.keys.include?(scope_name.to_s)
+    allowed_scopes.has_key?(scope_name)
   end
 
   class ConditionNotParsedError < ArgumentError; end
 
   class ConditionString
 
-    OPERATORS = %w(like equals)
+    OPERATORS = %w(like equals lower_than greater_than)
     MODIFIERS = %w(all any)
 
     attr_reader :klass, :column_name, :associations, :string
     attr_accessor :operator, :modifier
 
-    def initialize(klass, condition, associations = [])
+    def initialize(klass, condition, associations = [], allowed_scopes = nil)
       @string = condition.to_s
       @klass = klass
+      @allowed_scopes = ActiveSupport::HashWithIndifferentAccess.new(allowed_scopes || {})
 
       @associations = associations
 
@@ -69,9 +66,22 @@ module Blondie
       @modifier = nil
     end
 
+    def scope_arity
+      if @allowed_scopes.has_key?(@string)
+        return @allowed_scopes[@string]
+      end
+      if @klass.scope_allowed?(@string) 
+        return @klass.allowed_scopes[@string.to_s]
+      end
+      if @allowed_scopes.has_key?(@associations.join('_')) && @allowed_scopes[@associations.join('_')].has_key?(@string)
+        return @allowed_scopes[@associations.join('_')][@string]
+      end
+      return nil
+    end
+
     def parse!
       # 1. Scopes
-      if @klass.scope_allowed?(@string)
+      if scope_arity
         @operator = @string.intern
         return self
       end
@@ -90,7 +100,7 @@ module Blondie
       @klass.reflect_on_all_associations.each do |association|
         next unless @string =~ /^#{Regexp.escape(association.name)}_(.*)$/
         begin
-          return ConditionString.new(association.class_name.constantize, $1, @associations + [association.name]).parse!
+          return ConditionString.new(association.class_name.constantize, $1, @associations + [association.name], @allowed_scopes).parse!
         rescue ConditionNotParsedError
           next
         end
@@ -117,6 +127,18 @@ module Blondie
       @klass = klass
       @query = query.stringify_keys || {}
       @parser = block
+    end
+
+    def allowed_scopes
+      @allowed_scopes ||= HashWithIndifferentAccess.new
+    end
+
+    def allow_scopes(scopes)
+      allowed_scopes.merge!(scopes)
+    end
+
+    def scope_allowed?(scope_name)
+      allowed_scopes.has_key?(scope_name.to_s) || @klass.scope_allowed?(scope_name)
     end
 
     # Detected and used:
@@ -170,7 +192,7 @@ module Blondie
     end
 
     def apply_order(proxy, order_string)
-      if @klass.scope_allowed?(order_string.to_s)
+      if scope_allowed?(order_string)
         proxy = proxy.send(order_string)
       else
         order_string.to_s =~ /^((ascend|descend)_by_)?(.*)$/
@@ -209,9 +231,9 @@ module Blondie
 
     def conditions_from_condition_string(condition_string)
       begin
-        conditions = condition_string.to_s.split('_or_').map{|s| ConditionString.new(@klass, s).parse! }
+        conditions = condition_string.to_s.split('_or_').map{|s| ConditionString.new(@klass, s, [], @allowed_scopes).parse! }
       rescue ConditionNotParsedError
-        conditions = [ConditionString.new(@klass, condition_string).parse!]
+        conditions = [ConditionString.new(@klass, condition_string, [], @allowed_scopes).parse!]
       end
       conditions
     end
@@ -268,10 +290,20 @@ module Blondie
               condition_proxy = condition_proxy.where(condition.klass.table_name => { condition.column_name => v })
             end
           end
+        when 'greater_than', 'lower_than'
+          values = type_casted_values(condition, values)
+          if condition.operator == 'greater_than'
+            operator = '>'
+            value = condition_meta_operator == META_OPERATOR_AND ? values.max : values.min
+          else
+            operator = '<'
+            value = condition_meta_operator == META_OPERATOR_AND ? values.min : values.max
+          end
+          condition_proxy = condition_proxy.where("#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} #{operator} ?", value)
         else # a scope that has been whitelisted
-          case condition.klass.allowed_scopes[condition.operator.to_s]
+          case condition.scope_arity
           when 0
-            # Aritty of the scope is > 0
+            # Arity of the scope is > 0
             if value == CHECKBOX_TRUE_VALUE
               condition_proxy = condition_proxy.send(condition.operator)
             end
@@ -284,6 +316,11 @@ module Blondie
       proxy = proxy.merge(condition_proxy)
 
       proxy
+    end
+
+    # Type cast all values depending on column
+    def type_casted_values(condition, values)
+      values.map{|v| condition.klass.columns.find{|c|c.name == condition.column_name}.type_cast(v) }
     end
 
   end
