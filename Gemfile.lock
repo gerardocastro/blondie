@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    blondie (0.0.4)
+    blondie (0.0.5)
       activerecord (~> 4.0.2)
 
 GEM

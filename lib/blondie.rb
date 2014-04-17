@@ -19,7 +19,7 @@ module Blondie
 
     def search_form_for(search, options = {})
       as = options.delete(:as) || DEFAULT_AS
-      options.reverse_merge(method: :get)
+      options.reverse_merge!(method: :get)
       form_tag nil, options do
         fields_for(as, search) do |g|
           yield g
@@ -244,8 +244,6 @@ module Blondie
     end
 
     def apply_conditions(proxy, conditions, value)
-
-      query_chunks = []
 
       condition_proxy = nil
 
