@@ -2,11 +2,10 @@ require 'active_record'
 require 'or_scopes'
 
 module Blondie
-
   DEFAULT_SAFE_SEARCH = true
 
-  def self.safe_search=(value)
-    @safe_search = !!value
+  class << self
+    attr_writer :safe_search
   end
 
   def self.safe_search
@@ -14,7 +13,6 @@ module Blondie
   end
 
   module FormHelper
-
     DEFAULT_AS = 'q'
 
     def search_form_for(search, options = {})
@@ -42,21 +40,20 @@ module Blondie
   end
 
   def scope_allowed?(scope_name)
-    allowed_scopes.has_key?(scope_name)
+    allowed_scopes.key?(scope_name)
   end
 
   class ConditionNotParsedError < ArgumentError; end
 
   class ConditionString
-
     OPERATORS = %w(like equals lower_than greater_than)
     MODIFIERS = %w(all any)
 
     attr_reader :klass, :column_name, :associations, :string
     attr_accessor :operator, :modifier
 
-    def initialize(klass, condition, associations = [], allowed_scopes = nil)
-      @string = condition.to_s
+    def initialize(klass, string, associations = [], allowed_scopes = nil)
+      @string = string.to_s
       @klass = klass
       @allowed_scopes = ActiveSupport::HashWithIndifferentAccess.new(allowed_scopes || {})
 
@@ -68,16 +65,15 @@ module Blondie
     end
 
     def scope_arity
-      if @allowed_scopes.has_key?(@string)
-        return @allowed_scopes[@string]
+      return @allowed_scopes[@string] if scope_allowed?
+      return @klass.allowed_scopes[@string.to_s] if class_scope_allowed?
+
+      associations = @associations.join('_')
+      association_scopes = @allowed_scopes[associations]
+      if association_scopes && association_scopes.key?(@string)
+        return @allowed_scopes[associations][@string]
       end
-      if @klass.scope_allowed?(@string) 
-        return @klass.allowed_scopes[@string.to_s]
-      end
-      if @allowed_scopes.has_key?(@associations.join('_')) && @allowed_scopes[@associations.join('_')].has_key?(@string)
-        return @allowed_scopes[@associations.join('_')][@string]
-      end
-      return nil
+      nil
     end
 
     def parse!
@@ -88,36 +84,68 @@ module Blondie
       end
 
       # 2. column names
-      regexp = /^(#{@klass.column_names.map{|c|Regexp.escape(c)}.join('|')})(_(#{OPERATORS.map{|o|Regexp.escape(o)}.join('|')})(_(#{MODIFIERS.map{|m|Regexp.escape(m)}.join('|')}))?)?$/
+      column_names = @klass.column_names.map { |c| Regexp.escape(c) }.join('|')
+      operators = OPERATORS.map { |o| Regexp.escape(o) }.join('|')
+      modifiers = MODIFIERS.map { |m| Regexp.escape(m) }.join('|')
+      regexp = /^(#{column_names})(_(#{operators})(_(#{modifiers}))?)?$/
 
-      if @string =~ regexp
-        @column_name = $1
-        @operator = $3
-        @modifier = $5
+      matches = regexp.match(@string)
+      if matches
+        @column_name = matches.captures[0]
+        @operator = matches.captures[2]
+        @modifier = matches.captures[4]
         return self
       end
 
       # 3. Associations
       @klass.reflect_on_all_associations.each do |association|
-        next unless @string =~ /^#{Regexp.escape(association.name)}_(.*)$/
+        matches = /^#{Regexp.escape(association.name)}_(.*)$/.match @string
+        next unless matches
         begin
-          return ConditionString.new(association.class_name.constantize, $1, @associations + [association.name], @allowed_scopes).parse!
+          klass = association.class_name.constantize
+          string = matches.captures[0]
+          associations = @associations + [association.name]
+          return parse_condition_string klass, string, associations
         rescue ConditionNotParsedError
           next
         end
       end
 
-      raise ConditionNotParsedError, "#{@string} is not a valid condition"
+      fail ConditionNotParsedError, "#{@string} is not a valid condition"
     end
 
     def partial?
       @operator.blank?
     end
 
+    def full_column_name
+      "#{quoted_table_name}.#{quoted_column_name}"
+    end
+
+    private
+
+    def parse_condition_string(klass, string, associations)
+      ConditionString.new(klass, string, associations, @allowed_scopes).parse!
+    end
+
+    def quoted_table_name
+      klass.quoted_table_name
+    end
+
+    def quoted_column_name
+      klass.connection.quote_column_name(column_name)
+    end
+
+    def scope_allowed?
+      @allowed_scopes.key?(@string)
+    end
+
+    def class_scope_allowed?
+      @klass.scope_allowed?(@string)
+    end
   end
 
   class SearchProxy
-
     META_OPERATOR_OR = ' OR '
     META_OPERATOR_AND = ' AND '
     CHECKBOX_TRUE_VALUE = '1'
@@ -139,28 +167,29 @@ module Blondie
     end
 
     def scope_allowed?(scope_name)
-      allowed_scopes.has_key?(scope_name.to_s) || @klass.scope_allowed?(scope_name)
+      allowed_scopes.key?(scope_name.to_s) || @klass.scope_allowed?(scope_name)
     end
 
     # Detected and used:
     #
-    # %{column_name}_%{operator}
+    # %{col_name}_%{operator}
     # %{scope}
-    # %{association}_%{column_name}_%{operator}
-    # %{association}_%{association}_%{column_name}_%{operator}
-    # %{association}_%{scope}
-    # %{association}_%{association}_%{scope}
-    # %{column_name}_%{operator}_%{modifier}
-    # %{association}_%{column_name}_%{operator}_%{modifier}
-    # %{association}_%{association}_%{column_name}_%{operator}_%{modifier}
-    # %{column_name}_%{operator}_or_%{column_name}_%{operator}
-    # [%{association}_]%{column_name}_%{operator}_or_[%{association}_]%{column_name}_%{operator}
-    # %{column_name}_or_%{column_name}_%{operator}
-    # %{column_name}_%{operator}_or_%{scope}
-    # %{scope}_or_%{column_name}_%{operator}
+    # %{assoc}_%{col_name}_%{operator}
+    # %{assoc}_%{assoc}_%{col_name}_%{operator}
+    # %{assoc}_%{scope}
+    # %{assoc}_%{assoc}_%{scope}
+    # %{col_name}_%{operator}_%{modifier}
+    # %{assoc}_%{col_name}_%{operator}_%{modifier}
+    # %{assoc}_%{assoc}_%{col_name}_%{operator}_%{modifier}
+    # %{col_name}_%{operator}_or_%{col_name}_%{operator}
+    # [%{assoc}_]%{col_name}_%{operator}_or_[%{assoc}_]%{col_name}_%{operator}
+    # %{col_name}_or_%{col_name}_%{operator}
+    # %{col_name}_%{operator}_or_%{scope}
+    # %{scope}_or_%{col_name}_%{operator}
     def result
-      # The join([]) is here in order to get the proxy instead of the base class.
-      # If anyone has a better suggestion on how to achieve the same effect, I'll be glad to hear about it.
+      # The join([]) is here in order to get the proxy instead of the base
+      # class. If anyone has a better suggestion on how to achieve the same
+      # effect, I'll be glad to hear about it.
       proxy = @klass.joins([])
       query = @query.dup
       @parser.call(query) if @parser
@@ -175,7 +204,7 @@ module Blondie
           else
             conditions = conditions_from_condition_string condition_string
 
-            raise ConditionNotParsedError, "#{conditions.last.string} should have an operator" if conditions.last.partial?
+            fail ConditionNotParsedError, "#{conditions.last.string} should have an operator" if conditions.last.partial?
 
             proxy = apply_conditions(proxy, conditions, value)
           end
@@ -196,32 +225,31 @@ module Blondie
       if scope_allowed?(order_string)
         proxy = proxy.send(order_string)
       else
-        order_string.to_s =~ /^((ascend|descend)_by_)?(.*)$/
-        direction = $2 == 'descend' ? 'DESC' : 'ASC'
+        matches = /^((ascend|descend)_by_)?(.*)$/.match order_string.to_s
+        direction = matches.captures[1] == 'descend' ? 'DESC' : 'ASC'
         begin
-          condition = ConditionString.new(@klass, $3).parse!
-          raise ConditionNotParsedError unless condition.partial?
+          condition = ConditionString.new(@klass, matches.captures[2]).parse!
+          fail ConditionNotParsedError unless condition.partial?
         rescue ConditionNotParsedError
           raise ArgumentError, "'#{order_string}' is not a valid order string"
         end
 
-        proxy.order! "#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} #{direction}"
+        proxy.order! "#{condition.full_column_name} #{direction}"
         proxy.joins! chain_associations(condition.associations) unless condition.associations.empty?
       end
       proxy
     end
 
     def method_missing(method_name, *args, &block)
-      method_name.to_s =~ /^([^=]+)(=)?$/
-      stringified_method_name = $1
-      operator = $2
+      matches = /^([^=]+)(=)?$/.match method_name.to_s
+      stringified_method_name = matches.captures[0]
+      operator = matches.captures[1]
       begin
-        unless @query.has_key?(stringified_method_name) or stringified_method_name == 'order'
+        unless @query.key?(stringified_method_name) ||
+               stringified_method_name == 'order'
           conditions_from_condition_string stringified_method_name
         end
-        if operator == '='
-          @query[stringified_method_name] = args.first
-        end
+        @query[stringified_method_name] = args.first if operator == '='
         return @query[stringified_method_name]
       rescue ConditionNotParsedError
         super method_name, *args, &block
@@ -232,7 +260,9 @@ module Blondie
 
     def conditions_from_condition_string(condition_string)
       begin
-        conditions = condition_string.to_s.split('_or_').map{|s| ConditionString.new(@klass, s, [], @allowed_scopes).parse! }
+        conditions = condition_string.to_s.split('_or_').map do |s|
+          ConditionString.new(@klass, s, [], @allowed_scopes).parse!
+        end
       rescue ConditionNotParsedError
         conditions = [ConditionString.new(@klass, condition_string, [], @allowed_scopes).parse!]
       end
@@ -240,17 +270,20 @@ module Blondie
     end
 
     def chain_associations(associations)
-      associations.reverse[1..-1].inject(associations.last){|m,i| h = {}; h[i] = m; h }
+      associations.reverse[1..-1].reduce(associations.last) do |memo, item|
+        h = {}
+        h[item] = memo
+        h
+      end
     end
 
     def apply_conditions(proxy, conditions, value)
-
       condition_proxy = nil
 
       conditions.each_with_index do |condition, index|
 
         if index == 0
-          condition_proxy = (condition.klass || proxy ).joins([])
+          condition_proxy = (condition.klass || proxy).joins([])
         else
           condition_proxy = condition_proxy.or
         end
@@ -278,12 +311,12 @@ module Blondie
 
         case condition.operator
         when 'like'
-          sub_conditions = values.map{ "(#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} LIKE ?)" }
-          bindings = values.map{|v| "%#{v}%" }
+          sub_conditions = values.map { "(#{condition.full_column_name} LIKE ?)" }
+          bindings = values.map { |v| "%#{v}%" }
           condition_proxy = condition_proxy.where([sub_conditions.join(condition_meta_operator), *bindings])
         when 'equals'
           if condition_meta_operator == META_OPERATOR_OR
-            condition_proxy = condition_proxy.where("#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} IN (?)", values)
+            condition_proxy = condition_proxy.where("#{condition.full_column_name} IN (?)", values)
           else
             values.each do |v|
               condition_proxy = condition_proxy.where(condition.klass.table_name => { condition.column_name => v })
@@ -298,7 +331,7 @@ module Blondie
             operator = '<'
             value = condition_meta_operator == META_OPERATOR_AND ? values.min : values.max
           end
-          condition_proxy = condition_proxy.where("#{condition.klass.quoted_table_name}.#{condition.klass.connection.quote_column_name(condition.column_name)} #{operator} ?", value)
+          condition_proxy = condition_proxy.where("#{condition.full_column_name} #{operator} ?", value)
         else # a scope that has been whitelisted
           case condition.scope_arity
           when 0
@@ -319,11 +352,14 @@ module Blondie
 
     # Type cast all values depending on column
     def type_casted_values(condition, values)
-      values.map{|v| condition.klass.columns.find{|c|c.name == condition.column_name}.type_cast(v) }
+      values.map do |v|
+        klass = condition.klass.columns.find do |c|
+          c.name == condition.column_name
+        end
+        klass.type_cast(v)
+      end
     end
-
   end
-
 end
 
 ActiveRecord::Base.extend Blondie
