@@ -11,10 +11,15 @@ describe Blondie do
       Blondie::SearchProxy.should_receive(:new).with(anything, name_equals: 'toto').and_return(proxy)
       User.search(name_equals: 'toto').should == proxy
     end
-    it "should create a proxy with the right class" do
-      proxy = Blondie::SearchProxy.new(User, {})
-      Blondie::SearchProxy.should_receive(:new).with(User, anything).and_return(proxy)
-      User.search(name_equals: 'toto').should == proxy
+    context "when there is a current scope" do
+      it "should create a proxy with the right relation" do
+        expect(User.active.search.relation.class).to eq ActiveRecord::Relation::ActiveRecord_Relation_User
+      end
+    end
+    context "when there is no current scope" do
+      it "should create a proxy with an empty relation" do
+        expect(User.search.relation.class).to eq ActiveRecord::Relation::ActiveRecord_Relation_User
+      end
     end
   end
 
@@ -481,7 +486,11 @@ describe Blondie::SearchProxy do
         end
       end
     end
-
+    context "when proxy already has conditions" do
+      it "should keep original conditions" do
+        expect(User.active.search(login_like: 'toto').result.to_sql).to eq %(SELECT "users".* FROM "users"  WHERE "users"."active" = 't' AND (("users"."login" LIKE '%toto%')))
+      end
+    end
   end
 
   describe Blondie::FormHelper do

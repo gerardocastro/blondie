@@ -28,7 +28,7 @@ module Blondie
 
   def search(query = nil, &block)
     query ||= {}
-    SearchProxy.new(self, query, &block)
+    SearchProxy.new(self.current_scope || self.joins([]), query, &block)
   end
 
   def allow_scopes(scopes)
@@ -150,10 +150,10 @@ module Blondie
     META_OPERATOR_AND = ' AND '
     CHECKBOX_TRUE_VALUE = '1'
 
-    attr_reader :query
+    attr_reader :query, :relation
 
-    def initialize(klass, query = {}, &block)
-      @klass = klass
+    def initialize(relation, query = {}, &block)
+      @relation = relation
       @query = query.stringify_keys || {}
       @parser = block
     end
@@ -167,7 +167,7 @@ module Blondie
     end
 
     def scope_allowed?(scope_name)
-      allowed_scopes.key?(scope_name.to_s) || @klass.scope_allowed?(scope_name)
+      allowed_scopes.key?(scope_name.to_s) || @relation.klass.scope_allowed?(scope_name)
     end
 
     # Detected and used:
@@ -190,7 +190,7 @@ module Blondie
       # The join([]) is here in order to get the proxy instead of the base
       # class. If anyone has a better suggestion on how to achieve the same
       # effect, I'll be glad to hear about it.
-      proxy = @klass.joins([])
+      proxy = @relation
       query = @query.dup
       @parser.call(query) if @parser
       query.each_pair do |condition_string, value|
@@ -210,7 +210,7 @@ module Blondie
           end
         rescue ArgumentError, ConditionNotParsedError => error
           if Blondie.safe_search
-            return @klass.none
+            return @relation.none
           else
             raise error
           end
@@ -228,7 +228,7 @@ module Blondie
         matches = /^((ascend|descend)_by_)?(.*)$/.match order_string.to_s
         direction = matches.captures[1] == 'descend' ? 'DESC' : 'ASC'
         begin
-          condition = ConditionString.new(@klass, matches.captures[2]).parse!
+          condition = ConditionString.new(@relation.klass, matches.captures[2]).parse!
           fail ConditionNotParsedError unless condition.partial?
         rescue ConditionNotParsedError
           raise ArgumentError, "'#{order_string}' is not a valid order string"
@@ -261,10 +261,10 @@ module Blondie
     def conditions_from_condition_string(condition_string)
       begin
         conditions = condition_string.to_s.split('_or_').map do |s|
-          ConditionString.new(@klass, s, [], @allowed_scopes).parse!
+          ConditionString.new(@relation.klass, s, [], @allowed_scopes).parse!
         end
       rescue ConditionNotParsedError
-        conditions = [ConditionString.new(@klass, condition_string, [], @allowed_scopes).parse!]
+        conditions = [ConditionString.new(@relation.klass, condition_string, [], @allowed_scopes).parse!]
       end
       conditions
     end
