@@ -1,7 +1,7 @@
 # encoding: UTF-8
 Gem::Specification.new do |gem|
   gem.name        = 'blondie'
-  gem.version     = '0.0.6'
+  gem.version     = '0.0.7'
   gem.date        = '2014-04-10'
   gem.summary     = 'A searchlogic-like gem for Rails 4'
   gem.description = 'Blondie removes the hassle of creating complex search pages for your database records.'
