@@ -311,8 +311,16 @@ module Blondie
 
         case condition.operator
         when 'like'
-          sub_conditions = values.map { "(#{condition.full_column_name} LIKE ?)" }
-          bindings = values.map { |v| "%#{v}%" }
+          sub_conditions = values.map { "(#{condition.full_column_name} LIKE ? ESCAPE '!')" }
+          bindings = values.map do |value|
+            search_value = value.gsub(/([!_%])/, '!\1')
+            matches = search_value.match(/\A'(.*)'\Z/)
+            if matches
+              matches[1]
+            else
+              "%#{search_value}%"
+            end
+          end
           condition_proxy = condition_proxy.where([sub_conditions.join(condition_meta_operator), *bindings])
         when 'equals'
           if condition_meta_operator == META_OPERATOR_OR

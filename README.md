@@ -19,7 +19,7 @@ Currently, the following things are missing:
 
 As usual, add blondie to your Gemfile:
 
-    gem 'blondie', :git => 'git@github.com:Ghrind/blondie.git', :branch => 'master'
+    gem 'blondie', git: 'git@github.com:Ghrind/blondie.git', branch: 'master'
 
 If you want to use the Rails helpers, you should add the following to you ApplicationHelper module:
 
@@ -42,14 +42,16 @@ But blondie adds a little magic.
 For example:
 
     search_term = 'Dav'
-    User.search(name_like: term).result
+    User.search(name_like: search_term).result
 
 Is the equivalent of:
 
     search_term = 'Dav'
     User.where("`users`.`name` LIKE ?", "%#{search_term}%")
 
-There are currently no other operator, but more are to come.
+Note that SQL characters that are considered special in a LIKE statement wil be escaped.
+
+Additionally, if you add quotes to your search, it will behave like a simple 'equals' search.
 
 Of course, you can provide multiple conditions.
 The following will search for all users with the name Johnson and the firstname like Dav:

@@ -372,13 +372,21 @@ describe Blondie::SearchProxy do
 
       describe "the 'like' operator" do
         it "should understand the 'like' operator without modifier" do
-          User.search(name_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%')))
+          User.search(name_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%' ESCAPE '!')))
+        end
+        %w(! _ %).each do |special_character|
+          it "should escape the '#{special_character}' special character" do
+            User.search(name_like: special_character).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%!#{special_character}%' ESCAPE '!')))
+          end
+        end
+        it "should not do wildcard search if search is quoted" do
+          User.search(name_like: "'toto'").result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE 'toto' ESCAPE '!')))
         end
         it "should understand the 'like' operator with the 'any' modifier" do
-          User.search(name_like_any: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%') OR ("users"."name" LIKE '%tutu%')))
+          User.search(name_like_any: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%' ESCAPE '!') OR ("users"."name" LIKE '%tutu%' ESCAPE '!')))
         end
         it "should understand the 'like' operator with the 'all' modifier" do
-          User.search(name_like_all: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%') AND ("users"."name" LIKE '%tutu%')))
+          User.search(name_like_all: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%' ESCAPE '!') AND ("users"."name" LIKE '%tutu%' ESCAPE '!')))
         end
       end
 
@@ -429,10 +437,10 @@ describe Blondie::SearchProxy do
 
       context "when condition has 'or' in it" do
         it "should understand full syntax" do
-          User.search(name_like_or_login_equals: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (((("users"."name" LIKE '%toto%')) OR "users"."login" = 'toto')))
+          User.search(name_like_or_login_equals: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (((("users"."name" LIKE '%toto%' ESCAPE '!')) OR "users"."login" = 'toto')))
         end
         it "should understand partial syntax" do
-          User.search(name_or_login_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (((("users"."name" LIKE '%toto%')) OR (("users"."login" LIKE '%toto%')))))
+          User.search(name_or_login_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (((("users"."name" LIKE '%toto%' ESCAPE '!')) OR (("users"."login" LIKE '%toto%' ESCAPE '!')))))
         end
         it "should mix scopes and basic operators" do
           User.search(reverse_name_equals_or_id_equals: '1').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE (("users"."name" = '1' OR "users"."id" = 1)))
@@ -454,7 +462,7 @@ describe Blondie::SearchProxy do
       end
 
       it "should understand the 'like' operator" do
-        User.search(posts_title_like: 'tutu').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE (("posts"."title" LIKE '%tutu%')))
+        User.search(posts_title_like: 'tutu').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE (("posts"."title" LIKE '%tutu%' ESCAPE '!')))
       end
 
       it "should understand the 'equals' operator" do
@@ -488,7 +496,7 @@ describe Blondie::SearchProxy do
     end
     context "when proxy already has conditions" do
       it "should keep original conditions" do
-        expect(User.active.search(login_like: 'toto').result.to_sql).to eq %(SELECT "users".* FROM "users"  WHERE "users"."active" = 't' AND (("users"."login" LIKE '%toto%')))
+        expect(User.active.search(login_like: 'toto').result.to_sql).to eq %(SELECT "users".* FROM "users"  WHERE "users"."active" = 't' AND (("users"."login" LIKE '%toto%' ESCAPE '!')))
       end
     end
   end
