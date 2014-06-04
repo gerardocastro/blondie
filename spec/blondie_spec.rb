@@ -13,12 +13,12 @@ describe Blondie do
     end
     context "when there is a current scope" do
       it "should create a proxy with the right relation" do
-        expect(User.active.search.relation.class).to eq ActiveRecord::Relation::ActiveRecord_Relation_User
+        expect(User.active.search.relation.class).to eq User::ActiveRecord_Relation
       end
     end
     context "when there is no current scope" do
       it "should create a proxy with an empty relation" do
-        expect(User.search.relation.class).to eq ActiveRecord::Relation::ActiveRecord_Relation_User
+        expect(User.search.relation.class).to eq User::ActiveRecord_Relation
       end
     end
   end

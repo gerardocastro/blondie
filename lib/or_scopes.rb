@@ -69,7 +69,7 @@ module ActiveRecord
       if opts == :chain
         OrChain.new(self)
       else
-        left = with_default_scope
+        left = self
         right = (ActiveRecord::Relation === opts) ? opts : klass.unscoped.where(opts, rest)
          
         unless left.where_values.empty? || right.where_values.empty?
