@@ -2,6 +2,16 @@ require File.expand_path('../spec_helper', __FILE__)
 
 describe Blondie do
 
+  describe '#inspect' do
+    before do
+      @search = User.search
+    end
+    it 'should not load the data (ie not call inspect on relation proxy)' do
+      expect(@search.relation).not_to receive(:inspect)
+      @search.inspect
+    end
+  end
+
   describe '#search' do
     it "should create a new SearchProxy instance" do
       User.search.class.should == Blondie::SearchProxy
@@ -497,6 +507,18 @@ describe Blondie::SearchProxy do
     context "when proxy already has conditions" do
       it "should keep original conditions" do
         expect(User.active.search(login_like: 'toto').result.to_sql).to eq %(SELECT "users".* FROM "users"  WHERE "users"."active" = 't' AND (("users"."login" LIKE '%toto%' ESCAPE '!')))
+      end
+    end
+    describe '#allow_scopes' do
+      before do
+        @search = User.search
+      end
+      it 'should store allowed scopes' do
+        @search.allow_scopes foo: 1, bar: 2
+        expect(@search.allowed_scopes).to eq({ 'foo' => 1, 'bar' => 2 })
+      end
+      it 'should return search itself' do
+        expect(@search.allow_scopes(foo: 1, bar: 2)).to eq @search
       end
     end
   end

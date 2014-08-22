@@ -164,10 +164,15 @@ module Blondie
 
     def allow_scopes(scopes)
       allowed_scopes.merge!(scopes)
+      self
     end
 
     def scope_allowed?(scope_name)
       allowed_scopes.key?(scope_name.to_s) || @relation.klass.scope_allowed?(scope_name)
+    end
+
+    def inspect
+      "#<#{self.class.name} #{@query}>"
     end
 
     # Detected and used:
