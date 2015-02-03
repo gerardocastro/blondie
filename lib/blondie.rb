@@ -366,10 +366,10 @@ module Blondie
     # Type cast all values depending on column
     def type_casted_values(condition, values)
       values.map do |v|
-        klass = condition.klass.columns.find do |c|
+        column = condition.klass.columns.find do |c|
           c.name == condition.column_name
         end
-        klass.type_cast(v)
+        column.type_cast_for_database(v)
       end
     end
   end

@@ -279,7 +279,7 @@ describe Blondie::SearchProxy do
   describe "#result" do
     context "when a block is given" do
       it "should apply block to query before using it" do
-        User.search('foobar' => 'barfoo'){|q| q.delete('foobar'); q['name_equals'] = 'Jack'}.result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."name" = 'Jack')
+        User.search('foobar' => 'barfoo'){|q| q.delete('foobar'); q['name_equals'] = 'Jack'}.result.to_sql.should == %(SELECT "users".* FROM "users" WHERE "users"."name" = 'Jack')
       end
     end
     it "should stringify the query" do
@@ -312,15 +312,15 @@ describe Blondie::SearchProxy do
 
     context "with the order option" do
       it "should use 'ascend' by default" do
-        User.search(order: 'name').result.to_sql.should == %(SELECT "users".* FROM "users"   ORDER BY "users"."name" ASC)
+        User.search(order: 'name').result.to_sql.should == %(SELECT "users".* FROM "users"  ORDER BY "users"."name" ASC)
       end
 
       it "should recognize the 'ascend_by' syntax" do
-        User.search(order: 'ascend_by_name').result.to_sql.should == %(SELECT "users".* FROM "users"   ORDER BY "users"."name" ASC)
+        User.search(order: 'ascend_by_name').result.to_sql.should == %(SELECT "users".* FROM "users"  ORDER BY "users"."name" ASC)
       end
 
       it "should recognize the 'descend_by' syntax" do
-        User.search(order: 'descend_by_name').result.to_sql.should == %(SELECT "users".* FROM "users"   ORDER BY "users"."name" DESC)
+        User.search(order: 'descend_by_name').result.to_sql.should == %(SELECT "users".* FROM "users"  ORDER BY "users"."name" DESC)
       end
 
       it "should order on association" do
@@ -328,7 +328,7 @@ describe Blondie::SearchProxy do
       end
 
       it "should order on scope" do
-        User.search(order: 'ascend_by_name_size').result.to_sql.should == %(SELECT "users".* FROM "users"   ORDER BY length("users"."name"))
+        User.search(order: 'ascend_by_name_size').result.to_sql.should == %(SELECT "users".* FROM "users"  ORDER BY length("users"."name"))
       end
 
       context "when order in invalid" do
@@ -365,95 +365,95 @@ describe Blondie::SearchProxy do
           User.search(active: '0').result.to_sql.should == %(SELECT "users".* FROM "users")
         end
         it "should apply scope if value is '1'" do
-          User.search(active: '1').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."active" = 't')
+          User.search(active: '1').result.to_sql.should == %(SELECT "users".* FROM "users" WHERE "users"."active" = 't')
         end
       end
       context "when scope accepts an argument" do
         it "should pass value to the scope" do
-          User.search(id_in_list: '1,2,3').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."id" IN (1, 2, 3))
+          User.search(id_in_list: '1,2,3').result.to_sql.should == %(SELECT "users".* FROM "users" WHERE "users"."id" IN (1, 2, 3))
         end
       end
     end
 
     context "when condition applies to the original class" do
       it "should understand condition that is a scope" do
-        User.search(active: '1').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."active" = 't')
+        User.search(active: '1').result.to_sql.should == %(SELECT "users".* FROM "users" WHERE "users"."active" = 't')
       end
 
       describe "the 'like' operator" do
         it "should understand the 'like' operator without modifier" do
-          User.search(name_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%' ESCAPE '!')))
+          User.search(name_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users" WHERE (("users"."name" LIKE '%toto%' ESCAPE '!')))
         end
         %w(! _ %).each do |special_character|
           it "should escape the '#{special_character}' special character" do
-            User.search(name_like: special_character).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%!#{special_character}%' ESCAPE '!')))
+            User.search(name_like: special_character).result.to_sql.should == %(SELECT "users".* FROM "users" WHERE (("users"."name" LIKE '%!#{special_character}%' ESCAPE '!')))
           end
         end
         it "should not do wildcard search if search is quoted" do
-          User.search(name_like: "'toto'").result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE 'toto' ESCAPE '!')))
+          User.search(name_like: "'toto'").result.to_sql.should == %(SELECT "users".* FROM "users" WHERE (("users"."name" LIKE 'toto' ESCAPE '!')))
         end
         it "should understand the 'like' operator with the 'any' modifier" do
-          User.search(name_like_any: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%' ESCAPE '!') OR ("users"."name" LIKE '%tutu%' ESCAPE '!')))
+          User.search(name_like_any: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users" WHERE (("users"."name" LIKE '%toto%' ESCAPE '!') OR ("users"."name" LIKE '%tutu%' ESCAPE '!')))
         end
         it "should understand the 'like' operator with the 'all' modifier" do
-          User.search(name_like_all: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (("users"."name" LIKE '%toto%' ESCAPE '!') AND ("users"."name" LIKE '%tutu%' ESCAPE '!')))
+          User.search(name_like_all: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users" WHERE (("users"."name" LIKE '%toto%' ESCAPE '!') AND ("users"."name" LIKE '%tutu%' ESCAPE '!')))
         end
       end
 
       describe "the 'greater_than' operator" do
         it "should be understood without modifier" do
-          Post.search(share_count_greater_than: 5).result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" > 5))
+          Post.search(share_count_greater_than: 5).result.to_sql.should == %(SELECT "posts".* FROM "posts" WHERE ("posts"."share_count" > 5))
         end
         it "should be understood with the 'any' modifier" do
-          Post.search(share_count_greater_than_any: [5,3]).result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" > 3))
+          Post.search(share_count_greater_than_any: [5,3]).result.to_sql.should == %(SELECT "posts".* FROM "posts" WHERE ("posts"."share_count" > 3))
         end
         it "should be understood with the 'all' modifier" do
-          Post.search(share_count_greater_than_all: [5,3]).result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" > 5))
+          Post.search(share_count_greater_than_all: [5,3]).result.to_sql.should == %(SELECT "posts".* FROM "posts" WHERE ("posts"."share_count" > 5))
         end
         it "should typecast values if needed" do
-          Post.search(share_count_greater_than: '2').result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" > 2))
+          Post.search(share_count_greater_than: '2').result.to_sql.should == %(SELECT "posts".* FROM "posts" WHERE ("posts"."share_count" > 2))
         end
       end
 
       describe "the 'lower_than' operator" do
         it "should be understood without modifier" do
-          Post.search(share_count_lower_than: 5).result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" < 5))
+          Post.search(share_count_lower_than: 5).result.to_sql.should == %(SELECT "posts".* FROM "posts" WHERE ("posts"."share_count" < 5))
         end
         it "should be understood with the 'any' modifier" do
-          Post.search(share_count_lower_than_any: [5,3]).result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" < 5))
+          Post.search(share_count_lower_than_any: [5,3]).result.to_sql.should == %(SELECT "posts".* FROM "posts" WHERE ("posts"."share_count" < 5))
         end
         it "should be understood with the 'all' modifier" do
-          Post.search(share_count_lower_than_all: [5,3]).result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" < 3))
+          Post.search(share_count_lower_than_all: [5,3]).result.to_sql.should == %(SELECT "posts".* FROM "posts" WHERE ("posts"."share_count" < 3))
         end
         it "should typecast values if needed" do
-          Post.search(share_count_lower_than: '2').result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" < 2))
+          Post.search(share_count_lower_than: '2').result.to_sql.should == %(SELECT "posts".* FROM "posts" WHERE ("posts"."share_count" < 2))
         end
       end
 
       describe "the 'equals' operator" do
         it "should understand the 'equals' operator without modifier" do
-          User.search(name_equals: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."name" = 'toto')
+          User.search(name_equals: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users" WHERE "users"."name" = 'toto')
         end
         it "should understand the 'equals' operator with the 'any' modifier" do
-          User.search(name_equals_any: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE ("users"."name" IN ('toto','tutu')))
+          User.search(name_equals_any: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users" WHERE ("users"."name" IN ('toto','tutu')))
         end
         it "should understand the 'equals' operator with the 'all' modifier" do
-          User.search(name_equals_all: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."name" = 'toto' AND "users"."name" = 'tutu')
+          User.search(name_equals_all: ['toto','tutu']).result.to_sql.should == %(SELECT "users".* FROM "users" WHERE "users"."name" = 'toto' AND "users"."name" = 'tutu')
         end
         it "should typecast values if needed" do
-          User.search(posts_count_equals: '2').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE "users"."posts_count" = 2)
+          User.search(posts_count_equals: '2').result.to_sql.should == %(SELECT "users".* FROM "users" WHERE "users"."posts_count" = 2)
         end
       end
 
       context "when condition has 'or' in it" do
         it "should understand full syntax" do
-          User.search(name_like_or_login_equals: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (((("users"."name" LIKE '%toto%' ESCAPE '!')) OR "users"."login" = 'toto')))
+          User.search(name_like_or_login_equals: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users" WHERE ((("users"."name" LIKE '%toto%' ESCAPE '!')) OR "users"."login" = 'toto'))
         end
         it "should understand partial syntax" do
-          User.search(name_or_login_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users"  WHERE (((("users"."name" LIKE '%toto%' ESCAPE '!')) OR (("users"."login" LIKE '%toto%' ESCAPE '!')))))
+          User.search(name_or_login_like: 'toto').result.to_sql.should == %(SELECT "users".* FROM "users" WHERE ((("users"."name" LIKE '%toto%' ESCAPE '!')) OR (("users"."login" LIKE '%toto%' ESCAPE '!'))))
         end
         it "should mix scopes and basic operators" do
-          User.search(reverse_name_equals_or_id_equals: '1').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE (("users"."name" = '1' OR "users"."id" = 1)))
+          User.search(reverse_name_equals_or_id_equals: '1').result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE ("users"."name" = '1' OR "users"."id" = 1))
         end
       end
 
@@ -480,11 +480,11 @@ describe Blondie::SearchProxy do
       end
 
       it "should understand the 'greater_than' operator" do
-        Post.search(share_count_greater_than: '3').result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" > 3))
+        Post.search(share_count_greater_than: '3').result.to_sql.should == %(SELECT "posts".* FROM "posts" WHERE ("posts"."share_count" > 3))
       end
 
       it "should understand the 'lower_than' operator" do
-        Post.search(share_count_lower_than: '3').result.to_sql.should == %(SELECT "posts".* FROM "posts"  WHERE ("posts"."share_count" < 3))
+        Post.search(share_count_lower_than: '3').result.to_sql.should == %(SELECT "posts".* FROM "posts" WHERE ("posts"."share_count" < 3))
       end
 
       it "should not join multiple times" do
@@ -497,16 +497,16 @@ describe Blondie::SearchProxy do
 
       context "when condition has 'or' in it" do
         it "should understand full syntax" do
-          User.search(posts_favorite_count_equals_or_posts_share_count_equals: 10).result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE (("posts"."favorite_count" = 10 OR "posts"."share_count" = 10)))
+          User.search(posts_favorite_count_equals_or_posts_share_count_equals: 10).result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE ("posts"."favorite_count" = 10 OR "posts"."share_count" = 10))
         end
         it "should understand partial syntax" do
-          User.search(posts_favorite_count_or_posts_share_count_equals: 10).result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE (("posts"."favorite_count" = 10 OR "posts"."share_count" = 10)))
+          User.search(posts_favorite_count_or_posts_share_count_equals: 10).result.to_sql.should == %(SELECT "users".* FROM "users" INNER JOIN "posts" ON "posts"."user_id" = "users"."id" WHERE ("posts"."favorite_count" = 10 OR "posts"."share_count" = 10))
         end
       end
     end
     context "when proxy already has conditions" do
       it "should keep original conditions" do
-        expect(User.active.search(login_like: 'toto').result.to_sql).to eq %(SELECT "users".* FROM "users"  WHERE "users"."active" = 't' AND (("users"."login" LIKE '%toto%' ESCAPE '!')))
+        expect(User.active.search(login_like: 'toto').result.to_sql).to eq %(SELECT "users".* FROM "users" WHERE "users"."active" = 't' AND (("users"."login" LIKE '%toto%' ESCAPE '!')))
       end
     end
     describe '#allow_scopes' do
@@ -546,7 +546,5 @@ describe Blondie::SearchProxy do
         @helper.search_form_for(search, as: 'f')
       end
     end
-    
   end
-
 end
