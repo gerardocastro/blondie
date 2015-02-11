@@ -15,7 +15,9 @@ ActiveRecord::Base.establish_connection(
   database: DATABASE_FILENAME
 )
 
-File.unlink DATABASE_FILENAME
+if File.exists?(DATABASE_FILENAME)
+  File.unlink DATABASE_FILENAME
+end
 unless ActiveRecord::Base.connection.tables.include?('schema_migrations')
   ActiveRecord::Migration.verbose = false
   ActiveRecord::Schema.define(version: 1) do
