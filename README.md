@@ -13,7 +13,7 @@ This gem is currently in alpha stage. Not all the features are yet implemented a
 Currently, the following things are missing:
 
 * Can't search on polymorphic associations.
-* Most condition operator (not like, ends with, blank, does not equal, etc.) aren't implemented.
+* Some condition operators (not like, ends with, blank, does not equal, ...) aren't implemented.
 
 ## Install
 
