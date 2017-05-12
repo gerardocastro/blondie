@@ -316,7 +316,7 @@ module Blondie
 
         case condition.operator
         when 'like'
-          sub_conditions = values.map { "(#{condition.full_column_name} LIKE ? ESCAPE '!')" }
+          sub_conditions = values.map { "(#{condition.full_column_name} ILIKE ? ESCAPE '!')" }
           bindings = values.map do |value|
             search_value = value.gsub(/([!_%])/, '!\1')
             matches = search_value.match(/\A'(.*)'\Z/)
